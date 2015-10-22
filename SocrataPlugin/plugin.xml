@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin
+        id="SocrataOutput"
+        iconfile="socrata.png"
+        description="Socrata Output"
+        tooltip="This is a Socrata output plugin step"
+        category="Output"
+        classname="com.socrata.kettle.plugin.SocrataPluginMeta">
+    <libraries>
+        <library name="socrata.jar"/>
+        <library name="DataSync-1.6.jar"/>
+    </libraries>
+
+    <localized_category>
+        <category locale="en_US">Output</category>
+    </localized_category>
+    <localized_description>
+        <description locale="en_US">Socrata Output</description>
+    </localized_description>
+    <localized_tooltip>
+        <tooltip locale="en_US">This is a Socrata output plugin step</tooltip>
+    </localized_tooltip>
+
+</plugin>
