@@ -12,3 +12,6 @@ Looking for the latest release? Get it here: https://github.com/socrata/socrata-
 
 ### Installation
 Unzip and place the SocrataPlugin folder into the plugins/steps directory of your Pentaho Kettle installation.  Relaunch Kettle and you should see the Socrata Output plugin under Output for use in your transformations.
+
+*Note:* Mac versions prior to El Capitan require that Kettle be launched using the spoon.command.  Launching Kettle using the .app file will result in a Java version error.
+*Note:* Kettle version 6.0 does not ship with the steps directory.  For installation to succeed, a steps directory will need to be created inside the plugins directory.
