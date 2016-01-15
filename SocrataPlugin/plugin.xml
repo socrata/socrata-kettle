@@ -8,7 +8,7 @@
         classname="com.socrata.kettle.plugin.SocrataPluginMeta">
     <libraries>
         <library name="socrata.jar"/>
-        <library name="DataSync-1.6.jar"/>
+        <library name="DataSync-1.5.4.jar"/>
     </libraries>
 
     <localized_category>
