@@ -185,9 +185,8 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                     data.writer.write(fieldName.getBytes());
                 }
                 data.writer.write(binaryNewline);
-            } else if (r != null) {
-                // TODO: pull all field names from dataset???
             }
+
         } catch (Exception e) {
             throw new KettleStepException("Unable to write header", e);
         }
@@ -535,6 +534,22 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
 
             ControlFile controlFile = ControlFile.generateControlFile(filename.toString(), publishMethod,
                     null, meta.isUseSocrataGeocoding());
+
+            Set<String> formats = new LinkedHashSet<String>();
+            for (SocrataTextFileField field : meta.getOutputFields()) {
+                if (field.getTypeDesc().equalsIgnoreCase("Date")) {
+                    if (field.getFieldName() != null && !field.getFieldName().isEmpty()) {
+                        formats.add(field.getFormat());
+                        logDebug("Date Format: " + field.getFormat());
+                    }
+                }
+            }
+            logDebug("Number of date formats: " + formats.size());
+            if (formats.size() > 0) {
+                controlFile.csv.fixedTimestampFormat = formats.toArray(new String[formats.size()]);
+                controlFile.csv.floatingTimestampFormat = formats.toArray(new String[formats.size()]);
+            }
+
             if (!ignoreColumns.isEmpty()) {
                 logDebug("Setting Columns to Ignore");
                 controlFile.csv.ignoreColumns(ignoreColumns.toArray(new String[ignoreColumns.size()]));

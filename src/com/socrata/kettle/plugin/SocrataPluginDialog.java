@@ -708,7 +708,6 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
 
             TableItem item = wFields.getNonEmpty(i);
             field.setName(item.getText(1));
-            // TODO: SET FIELD NAME
             field.setType(item.getText(2));
             field.setFormat(item.getText(3));
             field.setLength(Const.toInt(item.getText(4), -1));

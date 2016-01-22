@@ -11,6 +11,7 @@ import org.pentaho.di.core.exception.KettleDatabaseException;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettleXMLException;
 import org.pentaho.di.core.row.*;
+import org.pentaho.di.core.row.value.ValueMetaInteger;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.xml.XMLHandler;
 import org.pentaho.di.repository.ObjectId;
@@ -354,22 +355,22 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
 
             int nrfields = rep.countNrStepAttributes(idStep, "field_name");
 
-            allocate( nrfields );
+            allocate(nrfields);
 
             for ( int i = 0; i < nrfields; i++ ) {
                 outputFields[i] = new SocrataTextFileField();
 
-                outputFields[i].setName( rep.getStepAttributeString( idStep, i, "field_name" ) );
-                outputFields[i].setType( rep.getStepAttributeString( idStep, i, "field_type" ) );
-                outputFields[i].setFormat( rep.getStepAttributeString( idStep, i, "field_format" ) );
-                outputFields[i].setCurrencySymbol( rep.getStepAttributeString( idStep, i, "field_currency" ) );
-                outputFields[i].setDecimalSymbol( rep.getStepAttributeString( idStep, i, "field_decimal" ) );
-                outputFields[i].setGroupingSymbol( rep.getStepAttributeString( idStep, i, "field_group" ) );
-                outputFields[i].setTrimType( ValueMeta.getTrimTypeByCode( rep.getStepAttributeString( idStep, i,
-                        "field_trim_type" ) ) );
-                outputFields[i].setNullString( rep.getStepAttributeString( idStep, i, "field_nullif" ) );
-                outputFields[i].setLength( (int) rep.getStepAttributeInteger( idStep, i, "field_length" ) );
-                outputFields[i].setPrecision( (int) rep.getStepAttributeInteger( idStep, i, "field_precision" ) );
+                outputFields[i].setName(rep.getStepAttributeString(idStep, i, "field_name"));
+                outputFields[i].setType(rep.getStepAttributeString(idStep, i, "field_type"));
+                outputFields[i].setFormat(rep.getStepAttributeString(idStep, i, "field_format"));
+                outputFields[i].setCurrencySymbol(rep.getStepAttributeString(idStep, i, "field_currency"));
+                outputFields[i].setDecimalSymbol(rep.getStepAttributeString(idStep, i, "field_decimal"));
+                outputFields[i].setGroupingSymbol(rep.getStepAttributeString(idStep, i, "field_group"));
+                outputFields[i].setTrimType(ValueMeta.getTrimTypeByCode(rep.getStepAttributeString(idStep, i,
+                        "field_trim_type")));
+                outputFields[i].setNullString(rep.getStepAttributeString(idStep, i, "field_nullif"));
+                outputFields[i].setLength((int) rep.getStepAttributeInteger(idStep, i, "field_length"));
+                outputFields[i].setPrecision((int) rep.getStepAttributeInteger(idStep, i, "field_precision"));
             }
         }
         catch(KettleDatabaseException dbe)
@@ -385,18 +386,18 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
     public void saveRep(Repository rep, IMetaStore metaStore, ObjectId idTransformation, ObjectId idStep) throws KettleException {
         try
         {
-            rep.saveStepAttribute(idTransformation, idStep, "domain", domain);
-            rep.saveStepAttribute(idTransformation, idStep, "user", user);
-            rep.saveStepAttribute(idTransformation, idStep, "password", password);
-            rep.saveStepAttribute(idTransformation, idStep, "datasetName", datasetName);
+            rep.saveStepAttribute(idTransformation, idStep, "domain", domain.trim());
+            rep.saveStepAttribute(idTransformation, idStep, "user", user.trim());
+            rep.saveStepAttribute(idTransformation, idStep, "password", password.trim());
+            rep.saveStepAttribute(idTransformation, idStep, "datasetName", datasetName.trim());
             rep.saveStepAttribute(idTransformation, idStep, "publishDataset", publishDataset);
             rep.saveStepAttribute(idTransformation, idStep, "publicDataset", publicDataset);
-            rep.saveStepAttribute(idTransformation, idStep, "writerMode", writerMode);
+            rep.saveStepAttribute(idTransformation, idStep, "writerMode", writerMode.trim());
             rep.saveStepAttribute(idTransformation, idStep, "useSocrataGeocoding", useSocrataGeocoding);
-            rep.saveStepAttribute(idTransformation, idStep, "proxyHost", proxyHost);
-            rep.saveStepAttribute(idTransformation, idStep, "proxyPort", proxyPort);
-            rep.saveStepAttribute(idTransformation, idStep, "proxyUsername", proxyUsername);
-            rep.saveStepAttribute(idTransformation, idStep, "proxyPassword", proxyPassword);
+            rep.saveStepAttribute(idTransformation, idStep, "proxyHost", proxyHost.trim());
+            rep.saveStepAttribute(idTransformation, idStep, "proxyPort", proxyPort.trim());
+            rep.saveStepAttribute(idTransformation, idStep, "proxyUsername", proxyUsername.trim());
+            rep.saveStepAttribute(idTransformation, idStep, "proxyPassword", proxyPassword.trim());
 
             for ( int i = 0; i < outputFields.length; i++ ) {
                 SocrataTextFileField field = outputFields[i];
