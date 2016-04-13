@@ -563,6 +563,9 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             job.setFileToPublishHasHeaderRow(true);
             job.setControlFile(controlFile);
             logBasic("DataSync job created");
+            // Redirect System.out to log for DataSync details to appear
+            PrintStream ps = createLoggingProxy(System.out);
+            System.setOut(ps);
             JobStatus status = job.run();
 
             if (status.isError()) {
@@ -570,9 +573,20 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             }
 
             logBasic("Job Status: " + status.getMessage());
+            System.setOut(System.out);
+            ps.close();
         } catch (Exception e) {
             logError(e.getMessage());
             throw new KettleStepException("DataSync Job Failed");
         }
+    }
+
+    private PrintStream createLoggingProxy(final PrintStream original) {
+        return new PrintStream(original) {
+            public void print(final String string) {
+                original.print(string);
+                logBasic(string);
+            }
+        };
     }
 }

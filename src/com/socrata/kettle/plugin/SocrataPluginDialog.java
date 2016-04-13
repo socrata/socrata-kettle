@@ -483,7 +483,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         columnInfos[0] = new ColumnInfo(Messages.getString("SocrataPluginDialog.NameColumn.Column"),
                 ColumnInfo.COLUMN_TYPE_CCOMBO, new String[]{""}, false);
         columnInfos[1] = new ColumnInfo(Messages.getString("SocrataPluginDialog.TypeColumn.Column"),
-                ColumnInfo.COLUMN_TYPE_CCOMBO, input.types);
+                ColumnInfo.COLUMN_TYPE_CCOMBO, ValueMeta.getTypes());
         columnInfos[2] = new ColumnInfo(Messages.getString("SocrataPluginDialog.FormatColumn.Column"),
                 ColumnInfo.COLUMN_TYPE_CCOMBO, formats.toArray(new String[formats.size()]));
         columnInfos[3] = new ColumnInfo(Messages.getString("SocrataPluginDialog.LengthColumn.Column"),
@@ -694,6 +694,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         spm.setPublishDataset(wPublishDataset.getSelection());
         spm.setPublicDataset(wPublicDataset.getSelection());
         spm.setWriterMode(wWriterMode.getText());
+        spm.setUseSocrataGeocoding(wUseSocrataGeocoding.getSelection());
         spm.setProxyHost(wProxyHost.getText());
         spm.setProxyPort(wProxyPort.getText());
         spm.setProxyUsername(wProxyUsername.getText());
