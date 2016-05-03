@@ -1,5 +1,6 @@
 package com.socrata.kettle.plugin;
 
+import com.socrata.api.SodaImporter;
 import com.socrata.datasync.DatasetUtils;
 import com.socrata.datasync.PublishMethod;
 import com.socrata.datasync.config.controlfile.ControlFile;
@@ -8,17 +9,35 @@ import com.socrata.datasync.config.userpreferences.UserPreferencesLib;
 import com.socrata.datasync.job.JobStatus;
 import com.socrata.model.importer.Column;
 import com.socrata.model.importer.Dataset;
+import org.apache.commons.io.IOUtils;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.JsonToken;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.exception.KettleValueException;
 import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.core.row.ValueMetaInterface;
+import org.pentaho.di.core.xml.XMLHandler;
+import org.pentaho.di.repository.StringObjectId;
 import org.pentaho.di.trans.Trans;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.*;
+import org.pentaho.di.trans.steps.jsoninput.JsonReader;
+import org.pentaho.di.ui.spoon.Spoon;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
 
 import java.io.*;
+import java.net.URI;
 import java.util.*;
 
 /**
@@ -53,12 +72,16 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         boolean result = true;
         Object[] r = getRow();
 
+        String writerMode = meta.getWriterMode();
+
         if (first) {
             first = false;
             data.outputRowMeta = getInputRowMeta().clone();
             meta.getFields(data.outputRowMeta, getStepname(), null, null, this, repository, metaStore);
             openNewFile();
-            getDatasetInfo();
+            if (!writerMode.equalsIgnoreCase("create")) {
+                getDatasetInfo();
+            }
 
             data.fieldnrs = new int[meta.getOutputFields().length];
             for (int i = 0; i < meta.getOutputFields().length; i++) {
@@ -75,7 +98,11 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         if (r == null) {
             logDebug("Last row of the file has processed");
             // Publish temp file using DataSync
-            sendToDatasync();
+            if (writerMode.equalsIgnoreCase("create")) {
+                createDataset();
+            } else {
+                sendToDatasync(meta.getDatasetName(), meta.getWriterMode());
+            }
             setOutputDone();
             return false;
         }
@@ -175,8 +202,12 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         try {
             if (meta.getOutputFields() != null && meta.getOutputFields().length > 0) {
                 for (int i = 0; i < meta.getOutputFields().length; i++) {
-                    String fieldName = meta.getOutputFields()[i].getFieldName();
-                    //String fieldName = meta.getOutputFields()[i].getName();
+                    String fieldName = "";
+                    if (meta.getWriterMode().equalsIgnoreCase("create")) {
+                        fieldName = meta.getOutputFields()[i].getName();
+                    } else {
+                        fieldName = meta.getOutputFields()[i].getFieldName();
+                    }
 
                     if ( i > 0) {
                         data.writer.write(binarySeparator);
@@ -506,9 +537,11 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             }
 
             for (String s : ignoreColumns) {
-                logBasic("IGNORING COLUMN: " + s);
                 ignoreColumns.remove(s);
-                ignoreColumns.add(s.replace(" ", "_"));
+                logBasic("IGNORING COLUMN: " + s);
+
+                String updated = s.replace(" ", "_");
+                ignoreColumns.add(updated);
             }
         } catch (Exception e) {
             throw new KettleException("Error getting dataset information", e);
@@ -516,7 +549,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         }
     }
 
-    private void sendToDatasync() throws KettleStepException {
+    private void sendToDatasync(String datasetId, String writerMode) throws KettleStepException {
         // Use DataSync to publish file
         // First close the file
         logDebug("Closing File");
@@ -530,7 +563,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
 
         try {
             logDebug("Beginning Send to DataSync");
-            PublishMethod publishMethod = PublishMethod.valueOf(meta.getWriterMode().toLowerCase());
+            PublishMethod publishMethod = PublishMethod.valueOf(writerMode.toLowerCase());
 
             ControlFile controlFile = ControlFile.generateControlFile(filename.toString(), publishMethod,
                     null, meta.isUseSocrataGeocoding());
@@ -556,7 +589,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             }
             logDebug("ControlFile created");
             IntegrationJob job = new IntegrationJob(userPrefs);
-            job.setDatasetID(meta.getDatasetName());
+            job.setDatasetID(datasetId);
             job.setFileToPublish(filename.toString());
             job.setPublishMethod(publishMethod);
             job.setPublishViaDi2Http(true);
@@ -588,5 +621,135 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 logBasic(string);
             }
         };
+    }
+
+    private void createDataset() throws KettleStepException {
+        try {
+            String datasetId = "";
+
+            String user = meta.getUser() + ":" + meta.getPassword();
+            String auth = Base64.getEncoder().encodeToString(user.getBytes());
+
+            String domain = "";
+            String host = "";
+            if (meta.getDomain().startsWith("https://")) {
+                domain = meta.getDomain();
+                host = meta.getDomain().replace("https://", "");
+            } else if (meta.getDomain().startsWith("http://")){
+                domain = meta.getDomain();
+                host = meta.getDomain().replace("http://", "");
+            } else {
+                domain = "https://" + meta.getDomain();
+                host = meta.getDomain();
+            }
+
+            CloseableHttpClient httpClient = HttpClients.createDefault();
+            try {
+                HttpPost httpPost = new HttpPost(domain + "/api/views");
+                httpPost.setHeader("Authorization", "Basic " + auth);
+                httpPost.setHeader("Content-Type", "application/json");
+                httpPost.setHeader("X-App-Token", appToken);
+                httpPost.setHeader("X-Socrata-Host", host);
+
+
+                StringEntity string = new StringEntity("{ \"name\": \"" + meta.getNewDatasetName() + "\" }", ContentType.APPLICATION_JSON);
+                httpPost.setEntity(string);
+
+                logDebug("Creating new dataset");
+
+                CloseableHttpResponse response = httpClient.execute(httpPost);
+
+                //logDebug(IOUtils.toString(response.getEntity().getContent()));
+
+                JsonFactory factory = new JsonFactory();
+                JsonParser parser = factory.createJsonParser(response.getEntity().getContent());
+                while (parser.nextToken() != JsonToken.END_OBJECT) {
+                    String fieldname = parser.getCurrentName();
+                    if ("id".equalsIgnoreCase(fieldname)) {
+                        parser.nextToken();
+                        datasetId = parser.getText();
+                        logBasic("New Dataset ID: " + datasetId);
+                        break;
+                    }
+                }
+                parser.close();
+                response.close();
+
+                if (!datasetId.isEmpty()) {
+                    httpPost.setURI(new URI(domain + "/api/views/" + datasetId + "/columns"));
+
+                    for (SocrataTextFileField field : meta.getOutputFields()) {
+                        String name = field.getName();
+                        String type = field.getTypeDesc().toLowerCase();
+                        String fieldName = name.toLowerCase().replace(" ", "_");
+
+                        if (type.equalsIgnoreCase("string")) {
+                            type = "text";
+                        } else if (type.equalsIgnoreCase("date") || type.equalsIgnoreCase("timestamp")) {
+                            type = "calendar_date";
+                        } else if (type.equalsIgnoreCase("integer") || type.equalsIgnoreCase("bignumber")) {
+                            type = "number";
+                        }
+
+                        StringEntity newColumn = new StringEntity("{\"name\": \"" + name + "\",\"dataTypeName\": \"" + type + "\",\"fieldName\": \"" + fieldName + "\"}", ContentType.APPLICATION_JSON);
+                        httpPost.setEntity(newColumn);
+
+                        logDebug("Creating column: " + name);
+
+                        response = httpClient.execute(httpPost);
+                        logBasic("Created column: " + name + " Status: " + response.getStatusLine());
+
+                        response.close();
+                    }
+                }
+
+                // Publish Dataset
+                if (meta.isPublishDataset()) {
+                    httpPost.setURI(new URI(domain + "/api/views/" + datasetId + "/publication.json"));
+                    httpPost.setEntity(null);
+                    logDebug("Starting publish dataset");
+                    response = httpClient.execute(httpPost);
+                    logBasic("Publish status: " + response.getStatusLine());
+                    response.close();
+                }
+
+                // Public Dataset
+                if (meta.isPublicDataset()) {
+                    HttpPut httpPut = new HttpPut(domain + "/api/views/" + datasetId + ".json?accessType=WEBSITE&method=setPermission&value=public.read");
+                    httpPut.setHeader("Authorization", "Basic " + auth);
+                    httpPut.setHeader("Content-Type", "application/json");
+                    httpPut.setHeader("X-App-Token", appToken);
+                    httpPut.setHeader("X-Socrata-Host", host);
+                    logDebug("Beginning make dataset public");
+                    response = httpClient.execute(httpPut);
+                    logBasic("Public status: " + response.getStatusLine());
+                    response.close();
+                }
+
+                httpClient.close();
+            } finally {
+                httpClient.close();
+            }
+
+            SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();
+            updated.setDatasetName(datasetId);
+            updated.setWriterMode("Upsert");
+            meta.replaceMeta(updated);
+
+            if(repository != null) {
+                logBasic("Saving update to repository");
+                meta.saveRep(repository, metaStore, getTrans().getObjectId(), getObjectId());
+            } else {
+                logBasic("Saving update to existing transformation file");
+                getTransMeta().addOrReplaceStep(meta.getParentStepMeta());
+                getTransMeta().writeXML(getTrans().getFilename());
+            }
+
+            getDatasetInfo();
+            sendToDatasync(datasetId, "Upsert");
+        } catch (Exception ex) {
+            logError(ex.getMessage());
+            throw new KettleStepException("Error creating dataset");
+        }
     }
 }

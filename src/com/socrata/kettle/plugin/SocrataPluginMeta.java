@@ -7,11 +7,11 @@ import org.pentaho.di.core.CheckResult;
 import org.pentaho.di.core.CheckResultInterface;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.database.DatabaseMeta;
+import org.pentaho.di.core.encryption.Encr;
 import org.pentaho.di.core.exception.KettleDatabaseException;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettleXMLException;
 import org.pentaho.di.core.row.*;
-import org.pentaho.di.core.row.value.ValueMetaInteger;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.xml.XMLHandler;
 import org.pentaho.di.repository.ObjectId;
@@ -36,6 +36,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
     private boolean publishDataset;
     private boolean publicDataset;
     private String writerMode;
+    private String newDatasetName;
     private boolean useSocrataGeocoding;
     private SocrataTextFileField[] outputFields;
     private String proxyHost;
@@ -107,6 +108,14 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
         this.writerMode = writerMode;
     }
 
+    public String getNewDatasetName() {
+        return newDatasetName;
+    }
+
+    public void setNewDatasetName(String newDatasetName) {
+        this.newDatasetName = newDatasetName;
+    }
+
     public boolean isUseSocrataGeocoding() {
         return useSocrataGeocoding;
     }
@@ -164,11 +173,12 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
 
         retval.append( "    " ).append(XMLHandler.addTagValue("domain", domain));
         retval.append( "    " ).append(XMLHandler.addTagValue("user", user));
-        retval.append( "    " ).append(XMLHandler.addTagValue("password", password));
+        retval.append( "    " ).append(XMLHandler.addTagValue("password", Encr.encryptPasswordIfNotUsingVariables(password)));
         retval.append( "    " ).append(XMLHandler.addTagValue("datasetName", datasetName));
         retval.append( "    " ).append(XMLHandler.addTagValue("publishDataset", publishDataset));
         retval.append( "    " ).append(XMLHandler.addTagValue("publicDataset", publicDataset));
         retval.append( "    " ).append(XMLHandler.addTagValue("writerMode", writerMode));
+        retval.append( "    " ).append(XMLHandler.addTagValue("newDatasetName", newDatasetName));
         retval.append( "    " ).append(XMLHandler.addTagValue("useSocrataGeocoding", useSocrataGeocoding));
         retval.append( "    " ).append(XMLHandler.addTagValue("proxyHost", proxyHost));
         retval.append( "    " ).append(XMLHandler.addTagValue("proxyPort", proxyPort));
@@ -242,7 +252,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
             if (user == null) {
                 user = "";
             }
-            password = XMLHandler.getTagValue(stepnode, "password");
+            password = Encr.decryptPasswordOptionallyEncrypted(XMLHandler.getTagValue(stepnode, "password"));
             if (password == null) {
                 password = "";
             }
@@ -255,6 +265,10 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
             writerMode = XMLHandler.getTagValue(stepnode, "writerMode");
             if (writerMode == null) {
                 writerMode = "";
+            }
+            newDatasetName = XMLHandler.getTagValue(stepnode, "newDatasetName");
+            if (newDatasetName == null) {
+                newDatasetName = "";
             }
             useSocrataGeocoding = "Y".equalsIgnoreCase(XMLHandler.getTagValue(stepnode, "useSocrataGeocoding"));
             proxyHost = XMLHandler.getTagValue(stepnode, "proxyHost");
@@ -311,6 +325,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
         publishDataset = false;
         publicDataset = false;
         writerMode = "";
+        newDatasetName = "";
         useSocrataGeocoding = false;
         proxyHost = "";
         proxyPort = "";
@@ -347,6 +362,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
             publishDataset = rep.getStepAttributeBoolean(idStep, "publishDataset");
             publicDataset = rep.getStepAttributeBoolean(idStep, "publicDataset");
             writerMode = rep.getStepAttributeString(idStep, "writerMode");
+            newDatasetName = rep.getStepAttributeString(idStep, "newDatasetName");
             useSocrataGeocoding = rep.getStepAttributeBoolean(idStep, "useSocrataGeocoding");
             proxyHost = rep.getStepAttributeString(idStep, "proxyHost");
             proxyPort = rep.getStepAttributeString(idStep, "proxyPort");
@@ -393,6 +409,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
             rep.saveStepAttribute(idTransformation, idStep, "publishDataset", publishDataset);
             rep.saveStepAttribute(idTransformation, idStep, "publicDataset", publicDataset);
             rep.saveStepAttribute(idTransformation, idStep, "writerMode", writerMode.trim());
+            rep.saveStepAttribute(idTransformation, idStep, "newDatasetName", newDatasetName.trim());
             rep.saveStepAttribute(idTransformation, idStep, "useSocrataGeocoding", useSocrataGeocoding);
             rep.saveStepAttribute(idTransformation, idStep, "proxyHost", proxyHost.trim());
             rep.saveStepAttribute(idTransformation, idStep, "proxyPort", proxyPort.trim());
@@ -402,16 +419,16 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
             for ( int i = 0; i < outputFields.length; i++ ) {
                 SocrataTextFileField field = outputFields[i];
 
-                rep.saveStepAttribute( idTransformation, idStep, i, "field_name", field.getName() );
-                rep.saveStepAttribute( idTransformation, idStep, i, "field_type", field.getTypeDesc() );
-                rep.saveStepAttribute( idTransformation, idStep, i, "field_format", field.getFormat() );
-                rep.saveStepAttribute( idTransformation, idStep, i, "field_currency", field.getCurrencySymbol() );
-                rep.saveStepAttribute( idTransformation, idStep, i, "field_decimal", field.getDecimalSymbol() );
-                rep.saveStepAttribute( idTransformation, idStep, i, "field_group", field.getGroupingSymbol() );
-                rep.saveStepAttribute( idTransformation, idStep, i, "field_trim_type", field.getTrimTypeCode() );
-                rep.saveStepAttribute( idTransformation, idStep, i, "field_nullif", field.getNullString() );
-                rep.saveStepAttribute( idTransformation, idStep, i, "field_length", field.getLength() );
-                rep.saveStepAttribute( idTransformation, idStep, i, "field_precision", field.getPrecision() );
+                rep.saveStepAttribute(idTransformation, idStep, i, "field_name", field.getName());
+                rep.saveStepAttribute(idTransformation, idStep, i, "field_type", field.getTypeDesc());
+                rep.saveStepAttribute(idTransformation, idStep, i, "field_format", field.getFormat());
+                rep.saveStepAttribute(idTransformation, idStep, i, "field_currency", field.getCurrencySymbol());
+                rep.saveStepAttribute(idTransformation, idStep, i, "field_decimal", field.getDecimalSymbol());
+                rep.saveStepAttribute(idTransformation, idStep, i, "field_group", field.getGroupingSymbol());
+                rep.saveStepAttribute(idTransformation, idStep, i, "field_trim_type", field.getTrimTypeCode());
+                rep.saveStepAttribute(idTransformation, idStep, i, "field_nullif", field.getNullString());
+                rep.saveStepAttribute(idTransformation, idStep, i, "field_length", field.getLength());
+                rep.saveStepAttribute(idTransformation, idStep, i, "field_precision", field.getPrecision());
             }
         }
         catch(KettleDatabaseException dbe)
@@ -445,6 +462,12 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
             cr = new CheckResult(CheckResult.TYPE_RESULT_ERROR, "No input received from other steps!", stepMeta);
             remarks.add(cr);
         }
+    }
+
+    public void replaceMeta(SocrataPluginMeta socrataMeta) {
+        this.datasetName = socrataMeta.getDatasetName();
+        this.writerMode = socrataMeta.getWriterMode();
+        this.setChanged();
     }
 
     public StepDialogInterface getDialog(Shell shell, StepMetaInterface meta, TransMeta transMeta, String name) {

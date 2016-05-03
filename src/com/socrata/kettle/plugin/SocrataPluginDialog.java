@@ -1,5 +1,6 @@
 package com.socrata.kettle.plugin;
 
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.custom.CTabItem;
@@ -22,6 +23,7 @@ import org.pentaho.di.trans.step.BaseStepMeta;
 import org.pentaho.di.trans.step.StepDialogInterface;
 import org.pentaho.di.trans.step.StepMeta;
 import org.pentaho.di.ui.core.dialog.ErrorDialog;
+import org.pentaho.di.ui.core.gui.GUIResource;
 import org.pentaho.di.ui.core.widget.*;
 import org.pentaho.di.ui.trans.step.BaseStepDialog;
 import org.pentaho.di.ui.trans.step.TableItemInsertListener;
@@ -70,6 +72,8 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
     private FormData fdPublicDataset;
     private FormData fdlWriterMode;
     private FormData fdWriterMode;
+    private FormData fdlNewDatasetName;
+    private FormData fdNewDatasetName;
     private FormData fdlUseSocrataGeocoding;
     private FormData fdUseSocrataGeocoding;
     private Label wlDatasetName;
@@ -80,6 +84,8 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
     private Button wPublicDataset;
     private Label wlWriterMode;
     private ComboVar wWriterMode;
+    private Label wlNewDatasetName;
+    private TextVar wNewDatasetName;
     private Label wlUseSocrataGeocoding;
     private Button wUseSocrataGeocoding;
 
@@ -259,13 +265,72 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         fdDatasetName.right = new FormAttachment(100, 0);
         wDatasetName.setLayoutData(fdDatasetName);
 
+        // Writer Mode
+        wlWriterMode = new Label(wParametersGroup, SWT.RIGHT);
+        wlWriterMode.setText(Messages.getString("SocrataPluginDialog.WriterMode.Label"));
+        props.setLook(wlWriterMode);
+        fdlWriterMode = new FormData();
+        fdlWriterMode.left = new FormAttachment(0, 0);
+        fdlWriterMode.top = new FormAttachment(wDatasetName, margin);
+        fdlWriterMode.right = new FormAttachment(middle, -margin);
+        wlWriterMode.setLayoutData(fdlWriterMode);
+
+        wWriterMode = new ComboVar(transMeta, wParametersGroup, SWT.SINGLE | SWT.READ_ONLY | SWT.BORDER);
+        wWriterMode.setEditable(true);
+
+        String upsert = Messages.getString("SocrataPluginDialog.WriterMode.Upsert");
+        String replace = Messages.getString("SocrataPluginDialog.WriterMode.Replace");
+        String create = Messages.getString("SocrataPluginDialog.WriterMode.Create");
+        String delete = Messages.getString("SocrataPluginDialog.WriterMode.Delete");
+        //wWriterMode.setItems(new String[]{upsert, replace});
+        wWriterMode.setItems(new String[]{upsert, replace, create, delete});
+        wWriterMode.setData(upsert, "upsert");
+        wWriterMode.setData(replace, "replace");
+        wWriterMode.setData(create, "create");
+        wWriterMode.setData(delete, "delete");
+
+        props.setLook(wWriterMode);
+        wWriterMode.addModifyListener(lsMod);
+        wWriterMode.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                input.setChanged();
+                setActive();
+            }
+        });
+        wWriterMode.setToolTipText(Messages.getString("SocrataPluginDialog.WriterMode.Tooltip"));
+        fdWriterMode = new FormData();
+        fdWriterMode.left = new FormAttachment(middle, 0);
+        fdWriterMode.top = new FormAttachment(wDatasetName, margin);
+        fdWriterMode.right = new FormAttachment(100, 0);
+        wWriterMode.setLayoutData(fdWriterMode);
+
+        // New Dataset Name
+        wlNewDatasetName = new Label(wParametersGroup, SWT.RIGHT);
+        wlNewDatasetName.setText(Messages.getString("SocrataPluginDialog.NewDatasetName.Label"));
+        props.setLook(wlNewDatasetName);
+        fdlNewDatasetName = new FormData();
+        fdlNewDatasetName.left = new FormAttachment(0, 0);
+        fdlNewDatasetName.top = new FormAttachment(wWriterMode, margin);
+        fdlNewDatasetName.right = new FormAttachment(middle, -margin);
+        wlNewDatasetName.setLayoutData(fdlNewDatasetName);
+
+        wNewDatasetName = new TextVar(transMeta, wParametersGroup, SWT.SINGLE | SWT.LEFT | SWT.BORDER);
+        props.setLook(wNewDatasetName);
+        wNewDatasetName.addModifyListener(lsMod);
+        fdNewDatasetName = new FormData();
+        fdNewDatasetName.left = new FormAttachment(middle, 0);
+        fdNewDatasetName.top = new FormAttachment(wWriterMode, margin);
+        fdNewDatasetName.right = new FormAttachment(100, 0);
+        wNewDatasetName.setLayoutData(fdNewDatasetName);
+
         // Publish Dataset
         wlPublishDataset = new Label(wParametersGroup, SWT.RIGHT);
         wlPublishDataset.setText(Messages.getString("SocrataPluginDialog.PublishDataset.Label"));
         props.setLook(wlPublishDataset);
         fdlPublishDataset = new FormData();
         fdlPublishDataset.left = new FormAttachment(0, 0);
-        fdlPublishDataset.top = new FormAttachment(wDatasetName, margin);
+        fdlPublishDataset.top = new FormAttachment(wNewDatasetName, margin);
         fdlPublishDataset.right = new FormAttachment(middle, -margin);
         wlPublishDataset.setLayoutData(fdlPublishDataset);
 
@@ -274,7 +339,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         props.setLook(wPublishDataset);
         fdPublishDataset = new FormData();
         fdPublishDataset.left = new FormAttachment(middle, 0);
-        fdPublishDataset.top = new FormAttachment(wDatasetName, margin);
+        fdPublishDataset.top = new FormAttachment(wNewDatasetName, margin);
         fdPublishDataset.right = new FormAttachment(100, 0);
         wPublishDataset.setLayoutData(fdPublishDataset);
 
@@ -297,50 +362,13 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         fdPublicDataset.right = new FormAttachment(100, 0);
         wPublicDataset.setLayoutData(fdPublicDataset);
 
-        // Writer Mode
-        wlWriterMode = new Label(wParametersGroup, SWT.RIGHT);
-        wlWriterMode.setText(Messages.getString("SocrataPluginDialog.WriterMode.Label"));
-        props.setLook(wlWriterMode);
-        fdlWriterMode = new FormData();
-        fdlWriterMode.left = new FormAttachment(0, 0);
-        fdlWriterMode.top = new FormAttachment(wPublicDataset, margin);
-        fdlWriterMode.right = new FormAttachment(middle, -margin);
-        wlWriterMode.setLayoutData(fdlWriterMode);
-
-        wWriterMode = new ComboVar(transMeta, wParametersGroup, SWT.SINGLE | SWT.READ_ONLY | SWT.BORDER);
-        wWriterMode.setEditable(true);
-
-        String upsert = Messages.getString("SocrataPluginDialog.WriterMode.Upsert");
-        //String delete = Messages.getString("SocrataPluginDialog.WriterMode.Delete");  TODO: ADD BACK in PHASE 2
-        String replace = Messages.getString("SocrataPluginDialog.WriterMode.Replace");
-        wWriterMode.setItems(new String[]{upsert, replace});
-        //wWriterMode.setItems(new String[]{upsert, delete, replace});
-        wWriterMode.setData(upsert, "upsert");
-        //wWriterMode.setData(delete, "delete");
-        wWriterMode.setData(replace, "replace");
-
-        props.setLook(wWriterMode);
-        wWriterMode.addModifyListener(lsMod);
-        wWriterMode.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                input.setChanged();
-            }
-        });
-        wWriterMode.setToolTipText(Messages.getString("SocrataPluginDialog.WriterMode.Tooltip"));
-        fdWriterMode = new FormData();
-        fdWriterMode.left = new FormAttachment(middle, 0);
-        fdWriterMode.top = new FormAttachment(wPublicDataset, margin);
-        fdWriterMode.right = new FormAttachment(100, 0);
-        wWriterMode.setLayoutData(fdWriterMode);
-
         // Public Dataset
         wlUseSocrataGeocoding = new Label(wParametersGroup, SWT.RIGHT);
         wlUseSocrataGeocoding.setText(Messages.getString("SocrataPluginDialog.UseSocrataGeocoding.Label"));
         props.setLook(wlUseSocrataGeocoding);
         fdlUseSocrataGeocoding = new FormData();
         fdlUseSocrataGeocoding.left = new FormAttachment(0, 0);
-        fdlUseSocrataGeocoding.top = new FormAttachment(wWriterMode, margin);
+        fdlUseSocrataGeocoding.top = new FormAttachment(wPublicDataset, margin);
         fdlUseSocrataGeocoding.right = new FormAttachment(middle, -margin);
         wlUseSocrataGeocoding.setLayoutData(fdlUseSocrataGeocoding);
 
@@ -349,7 +377,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         props.setLook(wUseSocrataGeocoding);
         fdUseSocrataGeocoding = new FormData();
         fdUseSocrataGeocoding.left = new FormAttachment(middle, 0);
-        fdUseSocrataGeocoding.top = new FormAttachment(wWriterMode, margin);
+        fdUseSocrataGeocoding.top = new FormAttachment(wPublicDataset, margin);
         fdUseSocrataGeocoding.right = new FormAttachment(100, 0);
         wUseSocrataGeocoding.setLayoutData(fdUseSocrataGeocoding);
 
@@ -602,6 +630,8 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
 
         getData();
 
+        setActive();
+
         input.setChanged(changed);
 
         shell.open();
@@ -614,6 +644,21 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         return stepname;
     }
 
+    private void setActive() {
+        String writerMode = wWriterMode.getText();
+
+        boolean enable = writerMode.equalsIgnoreCase("Create");
+
+        wlNewDatasetName.setEnabled(enable);
+        wNewDatasetName.setEnabled(enable);
+
+        wlPublicDataset.setEnabled(enable);
+        wPublicDataset.setEnabled(enable);
+
+        wlPublishDataset.setEnabled(enable);
+        wPublishDataset.setEnabled(enable);
+    }
+
     private void cancel() {
         stepname = null;
         input.setChanged(changed);
@@ -624,9 +669,19 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         if (Const.isEmpty(wStepname.getText())) {
             return;
         }
-        stepname = wStepname.getText();
 
         saveInfoInMeta(input);
+
+        // Show warning on delete
+        if (input.getWriterMode().equalsIgnoreCase("delete")) {
+            MessageDialog md = new MessageDialog(shell, Messages.getString("SocrataPluginDialog.DeleteAction.DialogTitle"),
+                    null, Messages.getString("SocrataPluginDialog.DeleteAction.DialogMessage"), MessageDialog.WARNING,
+                    new String[] {Messages.getString("SocrataPluginDialog.DeleteAction.DialogConfirm")}, 0);
+            MessageDialog.setDefaultImage(GUIResource.getInstance().getImageSpoon());
+            md.open();
+        }
+
+        stepname = wStepname.getText();
 
         dispose();
     }
