@@ -694,6 +694,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wPublishDataset.setSelection(input.isPublishDataset());
         wPublicDataset.setSelection(input.isPublicDataset());
         wWriterMode.setText(input.getWriterMode());
+        wNewDatasetName.setText(input.getNewDatasetName());
         wUseSocrataGeocoding.setSelection(input.isUseSocrataGeocoding());
         wProxyHost.setText(input.getProxyHost());
         wProxyPort.setText(input.getProxyPort());
@@ -749,6 +750,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         spm.setPublishDataset(wPublishDataset.getSelection());
         spm.setPublicDataset(wPublicDataset.getSelection());
         spm.setWriterMode(wWriterMode.getText());
+        spm.setNewDatasetName(wNewDatasetName.getText());
         spm.setUseSocrataGeocoding(wUseSocrataGeocoding.getSelection());
         spm.setProxyHost(wProxyHost.getText());
         spm.setProxyPort(wProxyPort.getText());

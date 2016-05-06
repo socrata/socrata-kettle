@@ -645,6 +645,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
 
             CloseableHttpClient httpClient = HttpClients.createDefault();
             try {
+                // TODO: detect Point type to set nbe=true
                 HttpPost httpPost = new HttpPost(domain + "/api/views");
                 httpPost.setHeader("Authorization", "Basic " + auth);
                 httpPost.setHeader("Content-Type", "application/json");
@@ -689,6 +690,8 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                             type = "calendar_date";
                         } else if (type.equalsIgnoreCase("integer") || type.equalsIgnoreCase("bignumber")) {
                             type = "number";
+                        } else if (type.equalsIgnoreCase("boolean")) {
+                            type = "checkbox";
                         }
 
                         StringEntity newColumn = new StringEntity("{\"name\": \"" + name + "\",\"dataTypeName\": \"" + type + "\",\"fieldName\": \"" + fieldName + "\"}", ContentType.APPLICATION_JSON);
