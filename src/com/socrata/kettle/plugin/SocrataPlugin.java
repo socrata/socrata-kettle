@@ -643,10 +643,22 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 host = meta.getDomain();
             }
 
+            boolean isNbe = false;
+
+            for (SocrataTextFileField field : meta.getOutputFields()) {
+                if (field.getTypeDesc().equalsIgnoreCase("point")) {
+                    isNbe = true;
+                }
+            }
+
             CloseableHttpClient httpClient = HttpClients.createDefault();
             try {
-                // TODO: detect Point type to set nbe=true
-                HttpPost httpPost = new HttpPost(domain + "/api/views");
+                String nbe = "";
+                if (isNbe) {
+                    nbe = "?nbe=true";
+                }
+
+                HttpPost httpPost = new HttpPost(domain + "/api/views" + nbe);
                 httpPost.setHeader("Authorization", "Basic " + auth);
                 httpPost.setHeader("Content-Type", "application/json");
                 httpPost.setHeader("X-App-Token", appToken);

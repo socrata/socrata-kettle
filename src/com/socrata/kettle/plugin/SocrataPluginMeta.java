@@ -42,9 +42,6 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
     private String proxyUsername;
     private String proxyPassword;
 
-    protected String[] types = new String[]{"checkbox", "date",
-            "email", "location", "money", "number", "percent", "stars", "text", "url"};
-
     public SocrataPluginMeta() {
         super();
     }
