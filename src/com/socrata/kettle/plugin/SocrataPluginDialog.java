@@ -672,6 +672,24 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
 
         saveInfoInMeta(input);
 
+        // Check for dataset id (not create) or dataset title (create only)
+        if (input.hasChanged()) {
+            if (input.getWriterMode().equalsIgnoreCase("create") &&
+                    (input.getNewDatasetName().isEmpty() || input.getNewDatasetName() == null)) {
+                MessageBox messageBox = new MessageBox(shell, SWT.OK | SWT.ICON_ERROR);
+                messageBox.setMessage(Messages.getString("SocrataPluginDialog.MissingValue.InputDatasetName"));
+                messageBox.setText(Messages.getString("SocrataPluginDialog.DialogCaptionError"));
+                messageBox.open();
+                return;
+            } else if (!input.getWriterMode().equalsIgnoreCase("create") && (input.getDatasetName().isEmpty() || input.getDatasetName() == null)) {
+                MessageBox messageBox = new MessageBox(shell, SWT.OK | SWT.ICON_ERROR);
+                messageBox.setMessage(Messages.getString("SocrataPluginDialog.MissingValue.InputValidId"));
+                messageBox.setText(Messages.getString("SocrataPluginDialog.DialogCaptionError"));
+                messageBox.open();
+                return;
+            }
+        }
+
         // Show warning on delete
         if (input.getWriterMode().equalsIgnoreCase("delete")) {
             MessageDialog md = new MessageDialog(shell, Messages.getString("SocrataPluginDialog.DeleteAction.DialogTitle"),
