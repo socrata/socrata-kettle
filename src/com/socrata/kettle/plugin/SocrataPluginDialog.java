@@ -76,6 +76,8 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
     private FormData fdNewDatasetName;
     private FormData fdlUseSocrataGeocoding;
     private FormData fdUseSocrataGeocoding;
+    private FormData fdlDeleteTempFile;
+    private FormData fdDeleteTempFile;
     private Label wlDatasetName;
     private TextVar wDatasetName;
     private Label wlPublishDataset;
@@ -88,6 +90,8 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
     private TextVar wNewDatasetName;
     private Label wlUseSocrataGeocoding;
     private Button wUseSocrataGeocoding;
+    private Label wlDeleteTempFile;
+    private Button wDeleteTempFile;
 
     private Group wProxyGroup;
     private FormData fdProxyGroup;
@@ -380,6 +384,25 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         fdUseSocrataGeocoding.top = new FormAttachment(wPublicDataset, margin);
         fdUseSocrataGeocoding.right = new FormAttachment(100, 0);
         wUseSocrataGeocoding.setLayoutData(fdUseSocrataGeocoding);
+
+        // Delete Temp csv File After Processing?
+        wlDeleteTempFile = new Label(wParametersGroup, SWT.RIGHT);
+        wlDeleteTempFile.setText(Messages.getString("SocrataPluginDialog.UseSocrataGeocoding.Label"));
+        props.setLook(wlDeleteTempFile);
+        fdlDeleteTempFile = new FormData();
+        fdlDeleteTempFile.left = new FormAttachment(0, 0);
+        fdlDeleteTempFile.top = new FormAttachment(wUseSocrataGeocoding, margin);
+        fdlDeleteTempFile.right = new FormAttachment(middle, -margin);
+        wlDeleteTempFile.setLayoutData(fdlDeleteTempFile);
+
+        wDeleteTempFile = new Button(wParametersGroup, SWT.CHECK);
+        wDeleteTempFile.setToolTipText(Messages.getString("SocrataPluginDialog.UseSocrataGeocoding.Tooltip"));
+        props.setLook(wDeleteTempFile);
+        fdDeleteTempFile = new FormData();
+        fdDeleteTempFile.left = new FormAttachment(middle, 0);
+        fdDeleteTempFile.top = new FormAttachment(wUseSocrataGeocoding, margin);
+        fdDeleteTempFile.right = new FormAttachment(100, 0);
+        wDeleteTempFile.setLayoutData(fdDeleteTempFile);
 
         fdParametersGroup = new FormData();
         fdParametersGroup.left = new FormAttachment(0, margin);

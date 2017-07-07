@@ -36,6 +36,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
     private String writerMode;
     private String newDatasetName;
     private boolean useSocrataGeocoding;
+    private boolean deleteTempFile;
     private SocrataTextFileField[] outputFields;
     private String proxyHost;
     private String proxyPort;
@@ -119,6 +120,10 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
         this.useSocrataGeocoding = useSocrataGeocoding;
     }
 
+    public boolean isDeleteTempFile() { return deleteTempFile; }
+
+    public void setDeleteTempFile(boolean deleteTempFile) { this.deleteTempFile = deleteTempFile; }
+
     public SocrataTextFileField[] getOutputFields() {
         return outputFields;
     }
@@ -175,6 +180,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
         retval.append( "    " ).append(XMLHandler.addTagValue("writerMode", writerMode));
         retval.append( "    " ).append(XMLHandler.addTagValue("newDatasetName", newDatasetName));
         retval.append( "    " ).append(XMLHandler.addTagValue("useSocrataGeocoding", useSocrataGeocoding));
+        retval.append( "    " ).append(XMLHandler.addTagValue("deleteTempFile", deleteTempFile));
         retval.append( "    " ).append(XMLHandler.addTagValue("proxyHost", proxyHost));
         retval.append( "    " ).append(XMLHandler.addTagValue("proxyPort", proxyPort));
         retval.append( "    " ).append(XMLHandler.addTagValue("proxyUsername", proxyUsername));
@@ -266,6 +272,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
                 newDatasetName = "";
             }
             useSocrataGeocoding = "Y".equalsIgnoreCase(XMLHandler.getTagValue(stepnode, "useSocrataGeocoding"));
+            deleteTempFile = "Y".equalsIgnoreCase(XMLHandler.getTagValue(stepnode, "deleteTempFile"));
             proxyHost = XMLHandler.getTagValue(stepnode, "proxyHost");
             if (proxyHost == null) {
                 proxyHost = "";
@@ -322,6 +329,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
         writerMode = "";
         newDatasetName = "";
         useSocrataGeocoding = false;
+        deleteTempFile = false;
         proxyHost = "";
         proxyPort = "";
         proxyUsername = "";
@@ -359,6 +367,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
             writerMode = rep.getStepAttributeString(idStep, "writerMode");
             newDatasetName = rep.getStepAttributeString(idStep, "newDatasetName");
             useSocrataGeocoding = rep.getStepAttributeBoolean(idStep, "useSocrataGeocoding");
+            deleteTempFile = rep.getJobEntryAttributeBoolean(idStep, "deleteTempFile");
             proxyHost = rep.getStepAttributeString(idStep, "proxyHost");
             proxyPort = rep.getStepAttributeString(idStep, "proxyPort");
             proxyUsername = rep.getStepAttributeString(idStep, "proxyUsername");
@@ -406,6 +415,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
             rep.saveStepAttribute(idTransformation, idStep, "writerMode", writerMode.trim());
             rep.saveStepAttribute(idTransformation, idStep, "newDatasetName", newDatasetName.trim());
             rep.saveStepAttribute(idTransformation, idStep, "useSocrataGeocoding", useSocrataGeocoding);
+            rep.saveStepAttribute(idTransformation, idStep, "deleteTempFile", deleteTempFile);
             rep.saveStepAttribute(idTransformation, idStep, "proxyHost", proxyHost.trim());
             rep.saveStepAttribute(idTransformation, idStep, "proxyPort", proxyPort.trim());
             rep.saveStepAttribute(idTransformation, idStep, "proxyUsername", proxyUsername.trim());

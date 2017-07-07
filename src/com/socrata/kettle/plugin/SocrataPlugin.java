@@ -101,7 +101,8 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             if (writerMode.equalsIgnoreCase("create")) {
                 createDataset();
             } else {
-                sendToDatasync(meta.getDatasetName(), meta.getWriterMode());
+                //sendToDatasync(meta.getDatasetName(), meta.getWriterMode());
+                publishData(meta.getDatasetName(), meta.getWriterMode());
             }
             setOutputDone();
             return false;
@@ -630,8 +631,8 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             String user = meta.getUser() + ":" + meta.getPassword();
             String auth = Base64.getEncoder().encodeToString(user.getBytes());
 
-            String domain = "";
-            String host = "";
+            String domain;
+            String host;
             if (meta.getDomain().startsWith("https://")) {
                 domain = meta.getDomain();
                 host = meta.getDomain().replace("https://", "");
@@ -651,8 +652,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 }
             }
 
-            CloseableHttpClient httpClient = HttpClients.createDefault();
-            try {
+            try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
                 String nbe = "";
                 if (isNbe) {
                     nbe = "?nbe=true";
@@ -742,8 +742,6 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 }
 
                 httpClient.close();
-            } finally {
-                httpClient.close();
             }
 
             SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();
@@ -765,6 +763,28 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         } catch (Exception ex) {
             logError(ex.getMessage());
             throw new KettleStepException("Error creating dataset");
+        }
+    }
+
+    private void publishData(String datasetId, String writerMode) {
+        // First close the file
+        logDebug("Closing File");
+        closeFile();
+
+        String domain = meta.getDomain();
+        String credentials = meta.getUser() + ":" + meta.getPassword();
+        String authorize = Base64.getEncoder().encodeToString(credentials.getBytes());
+
+        logDebug("Number of output rows: " + getLinesOutput());
+
+        try {
+            if (writerMode.equalsIgnoreCase("upsert")) {
+                SocrataPublish.upsert(domain, authorize, appToken, datasetId, filename.toString(), log);
+            } else if (writerMode.equalsIgnoreCase("replace")) {
+                SocrataPublish.replace(domain, authorize, appToken, datasetId, filename.toString(), log);
+            }
+        } catch(Exception ex) {
+            // TODO: Handle exception
         }
     }
 }
