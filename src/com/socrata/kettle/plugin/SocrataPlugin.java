@@ -38,6 +38,8 @@ import org.w3c.dom.Node;
 
 import java.io.*;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 /**
@@ -103,6 +105,16 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             } else {
                 //sendToDatasync(meta.getDatasetName(), meta.getWriterMode());
                 publishData(meta.getDatasetName(), meta.getWriterMode());
+            }
+
+            if (meta.isDeleteTempFile()) {
+                //Delete temp file
+                try {
+                    Files.delete(filename.toPath());
+                } catch (IOException ex) {
+                    logError(ex.getMessage());
+                    throw new KettleStepException("Error deleting temp csv file");
+                }
             }
             setOutputDone();
             return false;
@@ -766,7 +778,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         }
     }
 
-    private void publishData(String datasetId, String writerMode) {
+    private void publishData(String datasetId, String writerMode) throws KettleStepException {
         // First close the file
         logDebug("Closing File");
         closeFile();
@@ -784,7 +796,8 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 SocrataPublish.replace(domain, authorize, appToken, datasetId, filename.toString(), log);
             }
         } catch(Exception ex) {
-            // TODO: Handle exception
+            logError(ex.getMessage());
+            throw new KettleStepException("Publishing Failed");
         }
     }
 }

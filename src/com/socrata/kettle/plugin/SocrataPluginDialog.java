@@ -387,7 +387,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
 
         // Delete Temp csv File After Processing?
         wlDeleteTempFile = new Label(wParametersGroup, SWT.RIGHT);
-        wlDeleteTempFile.setText(Messages.getString("SocrataPluginDialog.UseSocrataGeocoding.Label"));
+        wlDeleteTempFile.setText(Messages.getString("SocrataPluginDialog.DeleteTempFile.Label"));
         props.setLook(wlDeleteTempFile);
         fdlDeleteTempFile = new FormData();
         fdlDeleteTempFile.left = new FormAttachment(0, 0);
@@ -396,7 +396,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wlDeleteTempFile.setLayoutData(fdlDeleteTempFile);
 
         wDeleteTempFile = new Button(wParametersGroup, SWT.CHECK);
-        wDeleteTempFile.setToolTipText(Messages.getString("SocrataPluginDialog.UseSocrataGeocoding.Tooltip"));
+        wDeleteTempFile.setToolTipText(Messages.getString("SocrataPluginDialog.DeleteTempFile.Tooltip"));
         props.setLook(wDeleteTempFile);
         fdDeleteTempFile = new FormData();
         fdDeleteTempFile.left = new FormAttachment(middle, 0);
@@ -737,6 +737,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wWriterMode.setText(input.getWriterMode());
         wNewDatasetName.setText(input.getNewDatasetName());
         wUseSocrataGeocoding.setSelection(input.isUseSocrataGeocoding());
+        wDeleteTempFile.setSelection(input.isDeleteTempFile());
         wProxyHost.setText(input.getProxyHost());
         wProxyPort.setText(input.getProxyPort());
         wProxyUsername.setText(input.getProxyUsername());
@@ -793,6 +794,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         spm.setWriterMode(wWriterMode.getText());
         spm.setNewDatasetName(wNewDatasetName.getText());
         spm.setUseSocrataGeocoding(wUseSocrataGeocoding.getSelection());
+        spm.setDeleteTempFile(wDeleteTempFile.getSelection());
         spm.setProxyHost(wProxyHost.getText());
         spm.setProxyPort(wProxyPort.getText());
         spm.setProxyUsername(wProxyUsername.getText());

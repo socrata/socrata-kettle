@@ -81,6 +81,14 @@ public class SocrataPublish {
         }
     }
 
+    static void upsertChunked() {
+
+    }
+
+    static void replaceChunked() {
+
+    }
+
     private static String getHost(String domain) {
         String host = "";
         if (domain.startsWith("https://")) {
