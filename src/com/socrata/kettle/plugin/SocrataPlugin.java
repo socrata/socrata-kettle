@@ -1,6 +1,5 @@
 package com.socrata.kettle.plugin;
 
-import com.socrata.api.SodaImporter;
 import com.socrata.datasync.DatasetUtils;
 import com.socrata.datasync.PublishMethod;
 import com.socrata.datasync.config.controlfile.ControlFile;
@@ -9,14 +8,21 @@ import com.socrata.datasync.config.userpreferences.UserPreferencesLib;
 import com.socrata.datasync.job.JobStatus;
 import com.socrata.model.importer.Column;
 import com.socrata.model.importer.Dataset;
-import org.apache.commons.io.IOUtils;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.*;
 import org.apache.http.entity.ContentType;
+import org.apache.http.entity.FileEntity;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonToken;
@@ -26,20 +32,14 @@ import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.exception.KettleValueException;
 import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.core.row.ValueMetaInterface;
-import org.pentaho.di.core.xml.XMLHandler;
-import org.pentaho.di.repository.StringObjectId;
 import org.pentaho.di.trans.Trans;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.*;
-import org.pentaho.di.trans.steps.jsoninput.JsonReader;
-import org.pentaho.di.ui.spoon.Spoon;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
 
 import java.io.*;
 import java.net.URI;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 
 /**
@@ -61,6 +61,8 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
     private List<String> fieldNames;
     private List<String> names;
     private Set<String> ignoreColumns;
+    private int numRowsPerChunk = 10000;
+    private RequestConfig proxyConfig;
 
     public SocrataPlugin(StepMeta s, StepDataInterface stepDataInterface, int c, TransMeta t, Trans dis) {
         super(s, stepDataInterface, c, t, dis);
@@ -562,7 +564,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         }
     }
 
-    private void sendToDatasync(String datasetId, String writerMode) throws KettleStepException {
+    /*private void sendToDatasync(String datasetId, String writerMode) throws KettleStepException {
         // Use DataSync to publish file
         // First close the file
         logDebug("Closing File");
@@ -634,7 +636,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 logBasic(string);
             }
         };
-    }
+    }*/
 
     private void createDataset() throws KettleStepException {
         try {
@@ -771,7 +773,8 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             }
 
             getDatasetInfo();
-            sendToDatasync(datasetId, "Upsert");
+            //sendToDatasync(datasetId, "Upsert");
+            publishData(datasetId, "Upsert");
         } catch (Exception ex) {
             logError(ex.getMessage());
             throw new KettleStepException("Error creating dataset");
@@ -784,20 +787,221 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         closeFile();
 
         String domain = meta.getDomain();
+
+        String host;
+        if (domain.startsWith("https://")) {
+            host = domain.replace("https://", "");
+        } else if (domain.startsWith("http://")) {
+            host = domain.replace("http://", "");
+        } else {
+            domain = "https://" + domain;
+            host = domain;
+        }
+
         String credentials = meta.getUser() + ":" + meta.getPassword();
         String authorize = Base64.getEncoder().encodeToString(credentials.getBytes());
 
         logDebug("Number of output rows: " + getLinesOutput());
 
-        try {
-            if (writerMode.equalsIgnoreCase("upsert")) {
-                SocrataPublish.upsert(domain, authorize, appToken, datasetId, filename.toString(), log);
-            } else if (writerMode.equalsIgnoreCase("replace")) {
-                SocrataPublish.replace(domain, authorize, appToken, datasetId, filename.toString(), log);
-            }
-        } catch(Exception ex) {
-            logError(ex.getMessage());
-            throw new KettleStepException("Publishing Failed");
+        if (writerMode.equalsIgnoreCase("upsert")) {
+            upsert(domain, host, authorize, datasetId);
+        } else if (writerMode.equalsIgnoreCase("replace")) {
+            replace(domain, host, authorize, datasetId);
         }
+    }
+
+    private void upsert(String domain, String host, String authorize, String datasetId) throws KettleStepException {
+
+        HttpPost post = getPost(domain, host, authorize, datasetId);
+        File file = new File(filename.toString());
+
+        try {
+            if (getLinesOutput() <= numRowsPerChunk) {
+                FileEntity entity = new FileEntity(file);
+                entity.setContentType("text/csv");
+
+                post.setEntity(entity);
+
+                execute(post);
+            } else {
+                BufferedReader reader = com.google.common.io.Files.newReader(file,
+                        Charset.defaultCharset());
+
+                String header = reader.readLine();
+                if (header != null) {
+                    logDebug("--HEADER LINE--");
+                    logDebug(header);
+
+                    String content = header + "\n";
+                    int count = 0;
+
+                    logDebug("Entering while loop");
+                    String line = reader.readLine();
+                    while (line != null) {
+                        content += line + "\n";
+                        count++;
+
+                        line = reader.readLine();
+
+                        if (count % numRowsPerChunk == 0 || line == null) {
+                            logDebug("Current count: " + count);
+
+                            StringEntity strEntity = new StringEntity(content);
+                            strEntity.setContentType("text/csv");
+
+                            post.setEntity(strEntity);
+
+                            execute(post);
+
+                            content = header + "\n";
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            logError(ex.getMessage());
+            throw new KettleStepException("Upsert Failed");
+        }
+
+
+    }
+
+    private void replace(String domain, String host, String authorize, String datasetId) throws KettleStepException {
+
+        File file = new File(filename.toString());
+
+        try {
+            if (getLinesOutput() <= numRowsPerChunk) {
+                FileEntity entity = new FileEntity(file);
+                entity.setContentType("text/csv");
+
+                HttpPut put = getPut(domain, host, authorize, datasetId);
+                put.setEntity(entity);
+
+                execute(put);
+            } else {
+                BufferedReader reader = com.google.common.io.Files.newReader(file,
+                        Charset.defaultCharset());
+
+                String header = reader.readLine();
+                if (header != null) {
+                    logDebug("--HEADER LINE--");
+                    logDebug(header);
+
+                    boolean first = true;
+
+                    String content = header + "\n";
+                    int count = 0;
+
+                    logDebug("Entering while loop");
+                    String line = reader.readLine();
+                    while (line != null) {
+                        content += line + "\n";
+                        count++;
+
+                        line = reader.readLine();
+
+                        if (count % numRowsPerChunk == 0 || line == null) {
+                            logDebug("Current count: " + count);
+                            StringEntity strEntity = new StringEntity(content);
+                            strEntity.setContentType("text/csv");
+
+                            if (first) {
+                                logDebug("Executing PUT for first chunk");
+                                HttpPut put = getPut(domain, host, authorize, datasetId);
+                                put.setEntity(strEntity);
+                                execute(put);
+                            } else {
+                                logDebug("Executing POST for chunk");
+                                HttpPost post = getPost(domain, host, authorize, datasetId);
+                                post.setEntity(strEntity);
+                                execute(post);
+                            }
+
+                            content = header + "\n";
+                            first = false;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            logError(ex.getMessage());
+            throw new KettleStepException("Replace Failed");
+        }
+
+    }
+
+    private void execute(HttpUriRequest request) throws Exception {
+        try (CloseableHttpClient httpClient = getClient()) {
+
+            try(CloseableHttpResponse response = httpClient.execute(request)) {
+                log.logBasic("----------------------------------------");
+                log.logBasic(response.getStatusLine().toString());
+                log.logBasic(EntityUtils.toString(response.getEntity()));
+            }
+        }
+    }
+
+    private CloseableHttpClient getClient() {
+        if (hasValue(meta.getProxyHost()) && hasValue(meta.getProxyPort())) {
+            HttpClientBuilder clientBuilder = HttpClients.custom();
+            HttpHost proxy = new HttpHost(meta.getProxyHost(), Integer.valueOf(meta.getProxyPort()));
+            proxyConfig = RequestConfig.custom().setProxy(proxy).build();
+
+            if (hasValue(meta.getProxyUsername()) && hasValue(meta.getProxyPassword())) {
+                CredentialsProvider credsProvider = new BasicCredentialsProvider();
+                credsProvider.setCredentials(
+                        new AuthScope(meta.getProxyHost(), Integer.valueOf(meta.getProxyPort())),
+                        new UsernamePasswordCredentials(meta.getProxyUsername(), meta.getProxyPassword())
+                );
+                clientBuilder.setDefaultCredentialsProvider(credsProvider);
+            }
+
+            return clientBuilder.build();
+        } else {
+            return HttpClients.createDefault();
+        }
+    }
+
+    private HttpPost getPost(String domain, String host, String authorize, String datasetId) {
+        HttpPost post = new HttpPost(domain + "/resource/" + datasetId + ".json");
+        post.setHeader("Authorization", "Basic " + authorize);
+        post.setHeader("Content-Type", "text/csv");
+        post.setHeader("X-App-Token", appToken);
+        post.setHeader("X-Socrata-Host", host);
+
+        if (proxyConfig != null) {
+            post.setConfig(proxyConfig);
+        }
+
+        log.logDebug("Request details: " + post.getRequestLine());
+        for (Header h : post.getAllHeaders()) {
+            log.logDebug(h.getName() + " : " + h.getValue());
+        }
+
+        return post;
+    }
+
+    private HttpPut getPut(String domain, String host, String authorize, String datasetId) {
+        HttpPut put = new HttpPut(domain + "/resource/" + datasetId + ".json");
+        put.setHeader("Authorization", "Basic " + authorize);
+        put.setHeader("Content-Type", "text/csv");
+        put.setHeader("X-App-Token", appToken);
+        put.setHeader("X-Socrata-Host", host);
+
+        if (proxyConfig != null) {
+            put.setConfig(proxyConfig);
+        }
+
+        log.logDebug("Request details: " + put.getRequestLine());
+        for (Header h : put.getAllHeaders()) {
+            log.logDebug(h.getName() + " : " + h.getValue());
+        }
+
+        return put;
+    }
+
+    private boolean hasValue(String option) {
+        return option != null && !option.isEmpty();
     }
 }
