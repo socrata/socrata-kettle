@@ -1,31 +1,10 @@
 package com.socrata.kettle.plugin;
 
-import com.socrata.datasync.DatasetUtils;
-import com.socrata.datasync.PublishMethod;
-import com.socrata.datasync.config.controlfile.ControlFile;
-import com.socrata.datasync.job.IntegrationJob;
-import com.socrata.datasync.config.userpreferences.UserPreferencesLib;
-import com.socrata.datasync.job.JobStatus;
-import com.socrata.model.importer.Column;
-import com.socrata.model.importer.Dataset;
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.*;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.FileEntity;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
+import org.apache.commons.httpclient.NameValuePair;
+import org.apache.commons.httpclient.methods.GetMethod;
+import org.apache.commons.httpclient.methods.PostMethod;
+import org.apache.commons.httpclient.methods.PutMethod;
+import org.codehaus.jackson.JsonNode;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettleStepException;
@@ -37,8 +16,6 @@ import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.*;
 
 import java.io.*;
-import java.net.URI;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.*;
 
@@ -56,13 +33,9 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
     private byte[] binaryNewline = environmentSubstitute(System.getProperty("line.separator")).getBytes();
     private byte[][] binaryNullValue;
     private File filename;
-    private UserPreferencesLib userPrefs;
-    private String appToken = "Eu1EiCmxZN4DWT9UmiXCLQpl6";
     private List<String> fieldNames;
     private List<String> names;
     private Set<String> ignoreColumns;
-    private int numRowsPerChunk = 10000;
-    private RequestConfig proxyConfig;
 
     public SocrataPlugin(StepMeta s, StepDataInterface stepDataInterface, int c, TransMeta t, Trans dis) {
         super(s, stepDataInterface, c, t, dis);
@@ -73,7 +46,6 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         data = (SocrataPluginData) sdi;
 
         // Write out file as a csv in the temp directory
-        boolean result = true;
         Object[] r = getRow();
 
         String writerMode = meta.getWriterMode();
@@ -106,7 +78,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 createDataset();
             } else {
                 //sendToDatasync(meta.getDatasetName(), meta.getWriterMode());
-                publishData(meta.getDatasetName(), meta.getWriterMode());
+                publishData();
             }
 
             if (meta.isDeleteTempFile()) {
@@ -126,7 +98,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
 
 
 
-        return result;
+        return true;
     }
 
     public boolean init(StepMetaInterface smi, StepDataInterface sdi) {
@@ -180,7 +152,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
     }
 
     private boolean closeFile() {
-        boolean retval = false;
+        boolean retval;
 
         try {
             if (data.writer != null) {
@@ -212,12 +184,11 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
     }
 
     private void writeHeader() throws KettleStepException {
-        RowMetaInterface r = data.outputRowMeta;
 
         try {
             if (meta.getOutputFields() != null && meta.getOutputFields().length > 0) {
                 for (int i = 0; i < meta.getOutputFields().length; i++) {
-                    String fieldName = "";
+                    String fieldName;
                     if (meta.getWriterMode().equalsIgnoreCase("create")) {
                         fieldName = meta.getOutputFields()[i].getName();
                     } else {
@@ -373,8 +344,8 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             }
             if (length > string.length()) {
                 // we need to pad this
-                int size = 0;
-                byte[] filler = null;
+                int size;
+                byte[] filler;
                 try {
                     filler = " ".getBytes();
                     size = text.length + filler.length * (length - string.length());
@@ -388,8 +359,8 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 } else {
                     int currIndex = text.length;
                     for (int i = 0; i < (length - string.length()); i++) {
-                        for (int j = 0; j < filler.length; j++) {
-                            bytes[currIndex++] = filler[j];
+                        for (byte b : filler) {
+                            bytes[currIndex++] = b;
                         }
                     }
                 }
@@ -401,7 +372,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         }
     }
 
-    public boolean containsSeparatorOrEnclosure( byte[] source, byte[] separator, byte[] enclosure ) {
+    private boolean containsSeparatorOrEnclosure( byte[] source, byte[] separator, byte[] enclosure ) {
         boolean result = false;
 
         boolean enclosureExists = enclosure != null && enclosure.length > 0;
@@ -463,7 +434,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             }
             if (found) {
                 if (positions == null) {
-                    positions = new ArrayList<Integer>();
+                    positions = new ArrayList<>();
                 }
                 positions.add(i);
             }
@@ -471,55 +442,59 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         return positions;
     }
 
-    private void setUserPrefencesLib() {
-        userPrefs = new UserPreferencesLib();
-        userPrefs.setDomain(meta.getDomain());
-        userPrefs.setUsername(meta.getUser());
-        userPrefs.setPassword(meta.getPassword());
-        userPrefs.setAppToken(appToken);
-        if (meta.getProxyHost() != null && !meta.getProxyHost().equalsIgnoreCase("")) {
-            userPrefs.setProxyHost(meta.getProxyHost());
-            userPrefs.setProxyPort(meta.getProxyPort());
-        }
-        if (meta.getProxyUsername() != null && !meta.getProxyUsername().equalsIgnoreCase("")) {
-            userPrefs.setProxyUsername(meta.getProxyUsername());
-        }
-        if (meta.getProxyPassword() != null && !meta.getProxyPassword().equalsIgnoreCase("")) {
-            userPrefs.setProxyPassword(meta.getProxyPassword());
-        }
-
-        userPrefs.load();
-    }
-
     private void getDatasetInfo() throws KettleException {
-        if (userPrefs == null) {
-            setUserPrefencesLib();
-        }
 
-        fieldNames = new ArrayList<String>();
-        names = new ArrayList<String>();
+        fieldNames = new ArrayList<>();
+        names = new ArrayList<>();
 
         try {
             logDebug("Getting Dataset Info");
-            Dataset dataset = DatasetUtils.getDatasetInfo(userPrefs, meta.getDatasetName());
-            List<Column> columns = dataset.getColumns();
-            for (Column c : columns) {
-                fieldNames.add(c.getFieldName());
-                names.add(c.getName());
+            String user = meta.getUser() + ":" + meta.getPassword();
+            String auth = Base64.getEncoder().encodeToString(user.getBytes());
+            logDebug("User auth: " + auth);
+
+            String host = SocrataPublishUtil.setHost(meta);
+            String domain = meta.getDomain();
+            logDebug("Host:" + host);
+            logDebug("Domain: " + domain);
+
+            String url = domain + "/api/views/" + meta.getDatasetName() + ".json";
+            logDebug("Request URL: " + url);
+            GetMethod get = SocrataPublishUtil.get(url, host, auth, "application/json");
+            JsonNode response = SocrataPublishUtil.execute(get, log);
+
+            if (response != null) {
+                JsonNode columns = response.path("columns");
+                logDebug(columns.toString());
+                for (JsonNode node : columns) {
+                    logDebug("Each node? " + node.toString());
+                    fieldNames.add(node.path("fieldName").asText().toLowerCase());
+                    names.add(node.path("name").asText().toLowerCase());
+                    logDebug("Adding fieldName: " + node.path("fieldName").asText() +
+                            " and name: " + node.path("name").asText());
+                }
             }
+
             logDebug("API Field Names Size: " + fieldNames.size());
             logDebug("Readable Names Size: " + names.size());
             Set<String> flowFieldNames = new LinkedHashSet<String>();
             Set<String> flowNames = new LinkedHashSet<String>();
 
-            for (int i = 0; i < meta.getOutputFields().length; i++) {
-                String fieldName = meta.getOutputFields()[i].getFieldName();
-                String name = meta.getOutputFields()[i].getName();
+            SocrataTextFileField[] fields = meta.getOutputFields();
+            for (SocrataTextFileField field : fields) {
+                logDebug(field.getName());
+                logDebug(field.getFieldName());
+            }
+
+            for (int i = 0; i < fields.length; i++) {
+                String fieldName = fields[i].getFieldName();
+                String name = fields[i].getName().toLowerCase();
                 if (fieldName != null && !fieldName.isEmpty()) {
+                    fieldName = fieldName.toLowerCase();
                     flowFieldNames.add(fieldName);
                 }
                 if (!name.isEmpty()) {
-                    flowNames.add(name);
+                    flowNames.add(name.toLowerCase());
                 }
                 if (fieldName == null) {
                     int index = names.indexOf(name);
@@ -538,7 +513,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
 
             logDebug("Determining field name mapping and ignore columns");
             // Start with assuming that flowNames contains human readable field names
-            ignoreColumns = new HashSet<String>(flowNames);
+            ignoreColumns = new HashSet<>(flowNames);
             ignoreColumns.removeAll(names);
 
             if (ignoreColumns.size() == flowNames.size()) {
@@ -564,80 +539,6 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         }
     }
 
-    /*private void sendToDatasync(String datasetId, String writerMode) throws KettleStepException {
-        // Use DataSync to publish file
-        // First close the file
-        logDebug("Closing File");
-        closeFile();
-
-        if (userPrefs == null) {
-            logDebug("User Prefs were not set.  Setting now ....");
-            setUserPrefencesLib();
-        }
-
-
-        try {
-            logDebug("Beginning Send to DataSync");
-            PublishMethod publishMethod = PublishMethod.valueOf(writerMode.toLowerCase());
-
-            ControlFile controlFile = ControlFile.generateControlFile(filename.toString(), publishMethod,
-                    null, meta.isUseSocrataGeocoding());
-
-            Set<String> formats = new LinkedHashSet<String>();
-            for (SocrataTextFileField field : meta.getOutputFields()) {
-                if (field.getTypeDesc().equalsIgnoreCase("Date")) {
-                    if (field.getFieldName() != null && !field.getFieldName().isEmpty()) {
-                        formats.add(field.getFormat());
-                        logDebug("Date Format: " + field.getFormat());
-                    }
-                }
-            }
-            logDebug("Number of date formats: " + formats.size());
-            if (formats.size() > 0) {
-                controlFile.csv.fixedTimestampFormat = formats.toArray(new String[formats.size()]);
-                controlFile.csv.floatingTimestampFormat = formats.toArray(new String[formats.size()]);
-            }
-
-            if (!ignoreColumns.isEmpty()) {
-                logDebug("Setting Columns to Ignore");
-                controlFile.csv.ignoreColumns(ignoreColumns.toArray(new String[ignoreColumns.size()]));
-            }
-            logDebug("ControlFile created");
-            IntegrationJob job = new IntegrationJob(userPrefs);
-            job.setDatasetID(datasetId);
-            job.setFileToPublish(filename.toString());
-            job.setPublishMethod(publishMethod);
-            job.setPublishViaDi2Http(true);
-            job.setFileToPublishHasHeaderRow(true);
-            job.setControlFile(controlFile);
-            logBasic("DataSync job created");
-            // Redirect System.out to log for DataSync details to appear
-            PrintStream ps = createLoggingProxy(System.out);
-            System.setOut(ps);
-            JobStatus status = job.run();
-
-            if (status.isError()) {
-                throw new KettleStepException("DataSync job failed: " + status.getMessage());
-            }
-
-            logBasic("Job Status: " + status.getMessage());
-            System.setOut(System.out);
-            ps.close();
-        } catch (Exception e) {
-            logError(e.getMessage());
-            throw new KettleStepException("DataSync Job Failed");
-        }
-    }
-
-    private PrintStream createLoggingProxy(final PrintStream original) {
-        return new PrintStream(original) {
-            public void print(final String string) {
-                original.print(string);
-                logBasic(string);
-            }
-        };
-    }*/
-
     private void createDataset() throws KettleStepException {
         try {
             String datasetId = "";
@@ -645,18 +546,8 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             String user = meta.getUser() + ":" + meta.getPassword();
             String auth = Base64.getEncoder().encodeToString(user.getBytes());
 
-            String domain;
-            String host;
-            if (meta.getDomain().startsWith("https://")) {
-                domain = meta.getDomain();
-                host = meta.getDomain().replace("https://", "");
-            } else if (meta.getDomain().startsWith("http://")){
-                domain = meta.getDomain();
-                host = meta.getDomain().replace("http://", "");
-            } else {
-                domain = "https://" + meta.getDomain();
-                host = meta.getDomain();
-            }
+            String host = SocrataPublishUtil.setHost(meta);
+            String domain = meta.getDomain();
 
             boolean isNbe = false;
 
@@ -666,44 +557,33 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 }
             }
 
-            try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+            try {
                 String nbe = "";
                 if (isNbe) {
                     nbe = "?nbe=true";
                 }
 
-                HttpPost httpPost = new HttpPost(domain + "/api/views" + nbe);
-                httpPost.setHeader("Authorization", "Basic " + auth);
-                httpPost.setHeader("Content-Type", "application/json");
-                httpPost.setHeader("X-App-Token", appToken);
-                httpPost.setHeader("X-Socrata-Host", host);
-
-
-                StringEntity string = new StringEntity("{ \"name\": \"" + meta.getNewDatasetName() + "\" }", ContentType.APPLICATION_JSON);
-                httpPost.setEntity(string);
+                String url = domain + "/api/views" + nbe;
+                PostMethod httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
+                NameValuePair[] data = {
+                        new NameValuePair("name",  meta.getNewDatasetName())
+                };
+                httpPost.setRequestBody(data);
 
                 logDebug("Creating new dataset");
 
-                CloseableHttpResponse response = httpClient.execute(httpPost);
+                JsonNode response = SocrataPublishUtil.execute(httpPost, log);
+                logBasic("Create datatset status: " + httpPost.getStatusLine());
 
-                //logDebug(IOUtils.toString(response.getEntity().getContent()));
-
-                JsonFactory factory = new JsonFactory();
-                JsonParser parser = factory.createJsonParser(response.getEntity().getContent());
-                while (parser.nextToken() != JsonToken.END_OBJECT) {
-                    String fieldname = parser.getCurrentName();
-                    if ("id".equalsIgnoreCase(fieldname)) {
-                        parser.nextToken();
-                        datasetId = parser.getText();
-                        logBasic("New Dataset ID: " + datasetId);
-                        break;
-                    }
+                if (response != null) {
+                    JsonNode id = response.path("id");
+                    datasetId = id.asText();
+                    logBasic("New Dataset ID: " + datasetId);
                 }
-                parser.close();
-                response.close();
 
                 if (!datasetId.isEmpty()) {
-                    httpPost.setURI(new URI(domain + "/api/views/" + datasetId + "/columns"));
+                    url = domain + "/api/views/" + datasetId + "/columns";
+                    httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
 
                     for (SocrataTextFileField field : meta.getOutputFields()) {
                         String name = field.getName();
@@ -720,42 +600,46 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                             type = "checkbox";
                         }
 
-                        StringEntity newColumn = new StringEntity("{\"name\": \"" + name + "\",\"dataTypeName\": \"" + type + "\",\"fieldName\": \"" + fieldName + "\"}", ContentType.APPLICATION_JSON);
-                        httpPost.setEntity(newColumn);
+                        NameValuePair[] columnData = {
+                                new NameValuePair("name", name),
+                                new NameValuePair("dataTypeName", type),
+                                new NameValuePair("fieldName", fieldName)
+                        };
+                        httpPost.setRequestBody(columnData);
 
                         logDebug("Creating column: " + name);
 
-                        response = httpClient.execute(httpPost);
-                        logBasic("Created column: " + name + " Status: " + response.getStatusLine());
-
-                        response.close();
+                        response = SocrataPublishUtil.execute(httpPost, log);
+                        logRowlevel(response.toString());
+                        logBasic("Created column: " + name + " Status: " + httpPost.getStatusLine());
                     }
                 }
 
                 // Publish Dataset
                 if (meta.isPublishDataset()) {
-                    httpPost.setURI(new URI(domain + "/api/views/" + datasetId + "/publication.json"));
-                    httpPost.setEntity(null);
+                    url = domain + "/api/views/" + datasetId + "/publication.json";
+                    httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
+                    logBasic(new String(httpPost.getResponseBody()));
+
                     logDebug("Starting publish dataset");
-                    response = httpClient.execute(httpPost);
-                    logBasic("Publish status: " + response.getStatusLine());
-                    response.close();
+                    response = SocrataPublishUtil.execute(httpPost, log);
+                    logRowlevel(response.toString());
+                    logBasic("Publish status: " + httpPost.getStatusLine());
                 }
 
                 // Public Dataset
                 if (meta.isPublicDataset()) {
-                    HttpPut httpPut = new HttpPut(domain + "/api/views/" + datasetId + ".json?accessType=WEBSITE&method=setPermission&value=public.read");
-                    httpPut.setHeader("Authorization", "Basic " + auth);
-                    httpPut.setHeader("Content-Type", "application/json");
-                    httpPut.setHeader("X-App-Token", appToken);
-                    httpPut.setHeader("X-Socrata-Host", host);
-                    logDebug("Beginning make dataset public");
-                    response = httpClient.execute(httpPut);
-                    logBasic("Public status: " + response.getStatusLine());
-                    response.close();
-                }
+                    String putUrl = domain + "/api/views/" + datasetId + ".json?accessType=WEBSITE&method=setPermission&value=public.read";
+                    PutMethod httpPut = SocrataPublishUtil.getPut(putUrl, host, auth, "application/json");
 
-                httpClient.close();
+                    logDebug("Beginning make dataset public");
+                    response = SocrataPublishUtil.execute(httpPut, log);
+                    logRowlevel(response.toString());
+                    logBasic("Public status: " + httpPut.getStatusLine());
+                }
+            } catch (Exception ex) {
+                logError(ex.getMessage());
+                throw new KettleStepException("Error creating dataset");
             }
 
             SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();
@@ -773,235 +657,25 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             }
 
             getDatasetInfo();
-            //sendToDatasync(datasetId, "Upsert");
-            publishData(datasetId, "Upsert");
+            publishData();
         } catch (Exception ex) {
             logError(ex.getMessage());
             throw new KettleStepException("Error creating dataset");
         }
     }
 
-    private void publishData(String datasetId, String writerMode) throws KettleStepException {
+    private void publishData() throws KettleStepException {
         // First close the file
         logDebug("Closing File");
         closeFile();
 
-        String domain = meta.getDomain();
-
-        String host;
-        if (domain.startsWith("https://")) {
-            host = domain.replace("https://", "");
-        } else if (domain.startsWith("http://")) {
-            host = domain.replace("http://", "");
-        } else {
-            domain = "https://" + domain;
-            host = domain;
-        }
-
-        String credentials = meta.getUser() + ":" + meta.getPassword();
-        String authorize = Base64.getEncoder().encodeToString(credentials.getBytes());
-
         logDebug("Number of output rows: " + getLinesOutput());
 
-        if (writerMode.equalsIgnoreCase("upsert")) {
-            upsert(domain, host, authorize, datasetId);
-        } else if (writerMode.equalsIgnoreCase("replace")) {
-            replace(domain, host, authorize, datasetId);
-        }
-    }
-
-    private void upsert(String domain, String host, String authorize, String datasetId) throws KettleStepException {
-
-        HttpPost post = getPost(domain, host, authorize, datasetId);
-        File file = new File(filename.toString());
-
+        SocrataPublish publish = new SocrataPublish();
         try {
-            if (getLinesOutput() <= numRowsPerChunk) {
-                FileEntity entity = new FileEntity(file);
-                entity.setContentType("text/csv");
-
-                post.setEntity(entity);
-
-                execute(post);
-            } else {
-                BufferedReader reader = com.google.common.io.Files.newReader(file,
-                        Charset.defaultCharset());
-
-                String header = reader.readLine();
-                if (header != null) {
-                    logDebug("--HEADER LINE--");
-                    logDebug(header);
-
-                    String content = header + "\n";
-                    int count = 0;
-
-                    logDebug("Entering while loop");
-                    String line = reader.readLine();
-                    while (line != null) {
-                        content += line + "\n";
-                        count++;
-
-                        line = reader.readLine();
-
-                        if (count % numRowsPerChunk == 0 || line == null) {
-                            logDebug("Current count: " + count);
-
-                            StringEntity strEntity = new StringEntity(content);
-                            strEntity.setContentType("text/csv");
-
-                            post.setEntity(strEntity);
-
-                            execute(post);
-
-                            content = header + "\n";
-                        }
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            logError(ex.getMessage());
-            throw new KettleStepException("Upsert Failed");
+            publish.publish(meta, filename, log);
+        } catch (IOException e) {
+            throw new KettleStepException("Error publishing data: " + e.getMessage());
         }
-
-
-    }
-
-    private void replace(String domain, String host, String authorize, String datasetId) throws KettleStepException {
-
-        File file = new File(filename.toString());
-
-        try {
-            if (getLinesOutput() <= numRowsPerChunk) {
-                FileEntity entity = new FileEntity(file);
-                entity.setContentType("text/csv");
-
-                HttpPut put = getPut(domain, host, authorize, datasetId);
-                put.setEntity(entity);
-
-                execute(put);
-            } else {
-                BufferedReader reader = com.google.common.io.Files.newReader(file,
-                        Charset.defaultCharset());
-
-                String header = reader.readLine();
-                if (header != null) {
-                    logDebug("--HEADER LINE--");
-                    logDebug(header);
-
-                    boolean first = true;
-
-                    String content = header + "\n";
-                    int count = 0;
-
-                    logDebug("Entering while loop");
-                    String line = reader.readLine();
-                    while (line != null) {
-                        content += line + "\n";
-                        count++;
-
-                        line = reader.readLine();
-
-                        if (count % numRowsPerChunk == 0 || line == null) {
-                            logDebug("Current count: " + count);
-                            StringEntity strEntity = new StringEntity(content);
-                            strEntity.setContentType("text/csv");
-
-                            if (first) {
-                                logDebug("Executing PUT for first chunk");
-                                HttpPut put = getPut(domain, host, authorize, datasetId);
-                                put.setEntity(strEntity);
-                                execute(put);
-                            } else {
-                                logDebug("Executing POST for chunk");
-                                HttpPost post = getPost(domain, host, authorize, datasetId);
-                                post.setEntity(strEntity);
-                                execute(post);
-                            }
-
-                            content = header + "\n";
-                            first = false;
-                        }
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            logError(ex.getMessage());
-            throw new KettleStepException("Replace Failed");
-        }
-
-    }
-
-    private void execute(HttpUriRequest request) throws Exception {
-        try (CloseableHttpClient httpClient = getClient()) {
-
-            try(CloseableHttpResponse response = httpClient.execute(request)) {
-                log.logBasic("----------------------------------------");
-                log.logBasic(response.getStatusLine().toString());
-                log.logBasic(EntityUtils.toString(response.getEntity()));
-            }
-        }
-    }
-
-    private CloseableHttpClient getClient() {
-        if (hasValue(meta.getProxyHost()) && hasValue(meta.getProxyPort())) {
-            HttpClientBuilder clientBuilder = HttpClients.custom();
-            HttpHost proxy = new HttpHost(meta.getProxyHost(), Integer.valueOf(meta.getProxyPort()));
-            proxyConfig = RequestConfig.custom().setProxy(proxy).build();
-
-            if (hasValue(meta.getProxyUsername()) && hasValue(meta.getProxyPassword())) {
-                CredentialsProvider credsProvider = new BasicCredentialsProvider();
-                credsProvider.setCredentials(
-                        new AuthScope(meta.getProxyHost(), Integer.valueOf(meta.getProxyPort())),
-                        new UsernamePasswordCredentials(meta.getProxyUsername(), meta.getProxyPassword())
-                );
-                clientBuilder.setDefaultCredentialsProvider(credsProvider);
-            }
-
-            return clientBuilder.build();
-        } else {
-            return HttpClients.createDefault();
-        }
-    }
-
-    private HttpPost getPost(String domain, String host, String authorize, String datasetId) {
-        HttpPost post = new HttpPost(domain + "/resource/" + datasetId + ".json");
-        post.setHeader("Authorization", "Basic " + authorize);
-        post.setHeader("Content-Type", "text/csv");
-        post.setHeader("X-App-Token", appToken);
-        post.setHeader("X-Socrata-Host", host);
-
-        if (proxyConfig != null) {
-            post.setConfig(proxyConfig);
-        }
-
-        log.logDebug("Request details: " + post.getRequestLine());
-        for (Header h : post.getAllHeaders()) {
-            log.logDebug(h.getName() + " : " + h.getValue());
-        }
-
-        return post;
-    }
-
-    private HttpPut getPut(String domain, String host, String authorize, String datasetId) {
-        HttpPut put = new HttpPut(domain + "/resource/" + datasetId + ".json");
-        put.setHeader("Authorization", "Basic " + authorize);
-        put.setHeader("Content-Type", "text/csv");
-        put.setHeader("X-App-Token", appToken);
-        put.setHeader("X-Socrata-Host", host);
-
-        if (proxyConfig != null) {
-            put.setConfig(proxyConfig);
-        }
-
-        log.logDebug("Request details: " + put.getRequestLine());
-        for (Header h : put.getAllHeaders()) {
-            log.logDebug(h.getName() + " : " + h.getValue());
-        }
-
-        return put;
-    }
-
-    private boolean hasValue(String option) {
-        return option != null && !option.isEmpty();
     }
 }

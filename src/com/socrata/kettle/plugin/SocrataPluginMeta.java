@@ -6,6 +6,7 @@ import org.eclipse.swt.widgets.Shell;
 import org.pentaho.di.core.CheckResult;
 import org.pentaho.di.core.CheckResultInterface;
 import org.pentaho.di.core.Const;
+import org.pentaho.di.core.annotations.Step;
 import org.pentaho.di.core.database.DatabaseMeta;
 import org.pentaho.di.core.encryption.Encr;
 import org.pentaho.di.core.exception.*;
@@ -25,6 +26,14 @@ import org.w3c.dom.Node;
  * @version 1.0
  * 2015-07-23
  */
+@Step(
+        id = "SocrataOutput",
+        image = "com/socrata/kettle/plugin/resources/Blue_logo_PMS7689_glyph.svg",
+        i18nPackageName="com.socrata.kettle.plugin",
+        name="SocrataPluginDialog.Shell.Title",
+        description = "SocrataPluginDialog.Shell.Tooltip",
+        categoryDescription="i18n:org.pentaho.di.trans.step:BaseStep.Category.Output"
+)
 public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface {
 
     private String domain;
@@ -34,6 +43,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
     private boolean publishDataset;
     private boolean publicDataset;
     private String writerMode;
+    private String importConfig;
     private String newDatasetName;
     private boolean useSocrataGeocoding;
     private boolean deleteTempFile;
@@ -102,6 +112,14 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
 
     public void setWriterMode(String writerMode) {
         this.writerMode = writerMode;
+    }
+
+    public String getImportConfig() {
+        return importConfig;
+    }
+
+    public void setImportConfig(String importConfig) {
+        this.importConfig = importConfig;
     }
 
     public String getNewDatasetName() {
@@ -178,6 +196,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
         retval.append( "    " ).append(XMLHandler.addTagValue("publishDataset", publishDataset));
         retval.append( "    " ).append(XMLHandler.addTagValue("publicDataset", publicDataset));
         retval.append( "    " ).append(XMLHandler.addTagValue("writerMode", writerMode));
+        retval.append( "    " ).append(XMLHandler.addTagValue("importConfig", importConfig));
         retval.append( "    " ).append(XMLHandler.addTagValue("newDatasetName", newDatasetName));
         retval.append( "    " ).append(XMLHandler.addTagValue("useSocrataGeocoding", useSocrataGeocoding));
         retval.append( "    " ).append(XMLHandler.addTagValue("deleteTempFile", deleteTempFile));
@@ -266,6 +285,10 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
             writerMode = XMLHandler.getTagValue(stepnode, "writerMode");
             if (writerMode == null) {
                 writerMode = "";
+            }
+            importConfig = XMLHandler.getTagValue(stepnode, "importConfig");
+            if (importConfig == null) {
+                importConfig = "";
             }
             newDatasetName = XMLHandler.getTagValue(stepnode, "newDatasetName");
             if (newDatasetName == null) {
@@ -365,6 +388,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
             publishDataset = rep.getStepAttributeBoolean(idStep, "publishDataset");
             publicDataset = rep.getStepAttributeBoolean(idStep, "publicDataset");
             writerMode = rep.getStepAttributeString(idStep, "writerMode");
+            importConfig = rep.getStepAttributeString(idStep, "importConfig");
             newDatasetName = rep.getStepAttributeString(idStep, "newDatasetName");
             useSocrataGeocoding = rep.getStepAttributeBoolean(idStep, "useSocrataGeocoding");
             deleteTempFile = rep.getJobEntryAttributeBoolean(idStep, "deleteTempFile");
@@ -413,6 +437,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
             rep.saveStepAttribute(idTransformation, idStep, "publishDataset", publishDataset);
             rep.saveStepAttribute(idTransformation, idStep, "publicDataset", publicDataset);
             rep.saveStepAttribute(idTransformation, idStep, "writerMode", writerMode.trim());
+            rep.saveStepAttribute(idTransformation, idStep, "importConfig", importConfig.trim());
             rep.saveStepAttribute(idTransformation, idStep, "newDatasetName", newDatasetName.trim());
             rep.saveStepAttribute(idTransformation, idStep, "useSocrataGeocoding", useSocrataGeocoding);
             rep.saveStepAttribute(idTransformation, idStep, "deleteTempFile", deleteTempFile);

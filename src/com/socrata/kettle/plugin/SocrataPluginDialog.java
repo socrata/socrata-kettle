@@ -72,6 +72,8 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
     private FormData fdPublicDataset;
     private FormData fdlWriterMode;
     private FormData fdWriterMode;
+    private FormData fdlImportConfig;
+    private FormData fdImportConfig;
     private FormData fdlNewDatasetName;
     private FormData fdNewDatasetName;
     private FormData fdlUseSocrataGeocoding;
@@ -86,6 +88,8 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
     private Button wPublicDataset;
     private Label wlWriterMode;
     private ComboVar wWriterMode;
+    private Label wlImportConfig;
+    private ComboVar wImportConfig;
     private Label wlNewDatasetName;
     private TextVar wNewDatasetName;
     private Label wlUseSocrataGeocoding;
@@ -309,13 +313,52 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         fdWriterMode.right = new FormAttachment(100, 0);
         wWriterMode.setLayoutData(fdWriterMode);
 
+        // Import Config
+        wlImportConfig = new Label(wParametersGroup, SWT.RIGHT);
+        wlImportConfig.setText(Messages.getString("SocrataPluginDialog.ImportConfig.Label"));
+        props.setLook(wlImportConfig);
+        fdlImportConfig = new FormData();
+        fdlImportConfig.left = new FormAttachment(0, 0);
+        fdlImportConfig.top = new FormAttachment(wWriterMode, margin);
+        fdlImportConfig.right = new FormAttachment(middle, -margin);
+        wlImportConfig.setLayoutData(fdlImportConfig);
+
+        wImportConfig = new ComboVar(transMeta, wParametersGroup, SWT.SINGLE | SWT.READ_ONLY | SWT.BORDER);
+        wImportConfig.setEditable(true);
+
+        //String upsert = Messages.getString("SocrataPluginDialog.WriterMode.Upsert");
+        //String replace = Messages.getString("SocrataPluginDialog.WriterMode.Replace");
+        //String create = Messages.getString("SocrataPluginDialog.WriterMode.Create");
+        //String delete = Messages.getString("SocrataPluginDialog.WriterMode.Delete");
+        wImportConfig.setItems(new String[]{upsert, replace, create, delete});
+        wImportConfig.setData(upsert, "upsert");
+        wImportConfig.setData(replace, "replace");
+        wImportConfig.setData(create, "create");
+        wImportConfig.setData(delete, "delete");
+
+        props.setLook(wImportConfig);
+        wImportConfig.addModifyListener(lsMod);
+        wImportConfig.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent e) {
+                input.setChanged();
+                setActive();
+            }
+        });
+        wImportConfig.setToolTipText(Messages.getString("SocrataPluginDialog.ImportConfig.Tooltip"));
+        fdImportConfig = new FormData();
+        fdImportConfig.left = new FormAttachment(middle, 0);
+        fdImportConfig.top = new FormAttachment(wWriterMode, margin);
+        fdImportConfig.right = new FormAttachment(100, 0);
+        wImportConfig.setLayoutData(fdImportConfig);
+
         // New Dataset Name
         wlNewDatasetName = new Label(wParametersGroup, SWT.RIGHT);
         wlNewDatasetName.setText(Messages.getString("SocrataPluginDialog.NewDatasetName.Label"));
         props.setLook(wlNewDatasetName);
         fdlNewDatasetName = new FormData();
         fdlNewDatasetName.left = new FormAttachment(0, 0);
-        fdlNewDatasetName.top = new FormAttachment(wWriterMode, margin);
+        fdlNewDatasetName.top = new FormAttachment(wImportConfig, margin);
         fdlNewDatasetName.right = new FormAttachment(middle, -margin);
         wlNewDatasetName.setLayoutData(fdlNewDatasetName);
 
@@ -324,7 +367,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wNewDatasetName.addModifyListener(lsMod);
         fdNewDatasetName = new FormData();
         fdNewDatasetName.left = new FormAttachment(middle, 0);
-        fdNewDatasetName.top = new FormAttachment(wWriterMode, margin);
+        fdNewDatasetName.top = new FormAttachment(wImportConfig, margin);
         fdNewDatasetName.right = new FormAttachment(100, 0);
         wNewDatasetName.setLayoutData(fdNewDatasetName);
 
@@ -366,7 +409,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         fdPublicDataset.right = new FormAttachment(100, 0);
         wPublicDataset.setLayoutData(fdPublicDataset);
 
-        // Public Dataset
+        // Use Socrata Geocoding?
         wlUseSocrataGeocoding = new Label(wParametersGroup, SWT.RIGHT);
         wlUseSocrataGeocoding.setText(Messages.getString("SocrataPluginDialog.UseSocrataGeocoding.Label"));
         props.setLook(wlUseSocrataGeocoding);
