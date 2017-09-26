@@ -4,13 +4,11 @@ import org.apache.commons.httpclient.methods.FileRequestEntity;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.PutMethod;
 import org.apache.commons.httpclient.methods.StringRequestEntity;
-import org.apache.commons.httpclient.methods.multipart.FilePart;
-import org.apache.commons.httpclient.methods.multipart.MultipartRequestEntity;
-import org.apache.commons.httpclient.methods.multipart.Part;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ArrayNode;
 import org.codehaus.jackson.node.ObjectNode;
+import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.logging.LogChannelInterface;
 
 import java.io.File;
@@ -45,7 +43,7 @@ public class SocrataPublish {
     private String createRevisionPath;
     private String buildConfigPath;
 
-    public void publish(SocrataPluginMeta meta, File file, LogChannelInterface log) throws Exception {
+    public void publish(SocrataPluginMeta meta, File file, LogChannelInterface log) throws IOException, KettleStepException {
         this.log = log;
         host = SocrataPublishUtil.setHost(meta);
         domain = meta.getDomain();
@@ -63,11 +61,11 @@ public class SocrataPublish {
         createRevisionFromConfig();
         createSource(this.file.toString());
         uploadSourceData();
-        getLatestOutput();
+        //getLatestOutput();
         applyRevision();
     }
 
-    private void createSource(String filename) throws Exception {
+    private void createSource(String filename) throws IOException, KettleStepException {
 
         PostMethod httpPost = SocrataPublishUtil.getPost(domain + createSourcePath, host, authorize, "application/json");
 
@@ -86,7 +84,7 @@ public class SocrataPublish {
         }
     }
 
-    private void uploadSourceData() throws Exception {
+    private void uploadSourceData() throws IOException, KettleStepException {
 
         PostMethod httpPost = SocrataPublishUtil.getPost(domain + uploadDataPath, host, authorize, "text/csv");
         FileRequestEntity fre = new FileRequestEntity(file, "text/csv");
@@ -101,8 +99,8 @@ public class SocrataPublish {
             for (JsonNode schema : schemas) {
                 JsonNode outputSchemas = schema.path("output_schemas");
                 for (JsonNode outputSchema : outputSchemas) {
-                    JsonNode outputSchemaId = outputSchema.path("id");
-                    System.out.println(outputSchemaId.asInt());
+                    JsonNode osId = outputSchema.path("id");
+                    outputSchemaId = osId.asInt();
 
                     JsonNode inputSchema = outputSchema.path("input_schema_id");
                     inputSchemaId = inputSchema.asText();
@@ -126,7 +124,7 @@ public class SocrataPublish {
         }
     }
 
-    private void createRevisionFromConfig() throws Exception {
+    private void createRevisionFromConfig() throws IOException, KettleStepException {
 
         String url = domain;
         if (createRevisionPath == null || createRevisionPath.isEmpty()) {
@@ -154,7 +152,7 @@ public class SocrataPublish {
         }
     }
 
-    private void applyRevision() throws Exception {
+    private void applyRevision() throws IOException, KettleStepException {
         PutMethod httpPut = SocrataPublishUtil.getPut(domain + applyRevisionPath, host, authorize, "application/json");
 
         String json = "{ \"output_schema_id\": " + outputSchemaId + " }";
@@ -171,7 +169,7 @@ public class SocrataPublish {
         }
     }
 
-    private void getLatestOutput() throws Exception {
+    private void getLatestOutput() throws IOException, KettleStepException {
 
         JsonNode results = SocrataPublishUtil.execute(
                 SocrataPublishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log);
@@ -187,7 +185,7 @@ public class SocrataPublish {
         }
     }
 
-    private void createImportConfig(SocrataPluginMeta meta) throws Exception {
+    private void createImportConfig(SocrataPluginMeta meta) throws IOException, KettleStepException {
         String newImportConfigName = datasetId + ":" + LocalDateTime.now();
         String dataAction;
         if(writerMode.equalsIgnoreCase("upsert")) {

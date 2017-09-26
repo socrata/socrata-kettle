@@ -10,7 +10,6 @@ import org.apache.commons.httpclient.methods.PutMethod;
 import org.apache.commons.httpclient.params.HttpMethodParams;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.logging.LogChannelInterface;
 
@@ -33,7 +32,7 @@ public class SocrataPublishUtil {
         return httpClient;
     }
 
-    public static JsonNode execute(HttpMethod method, LogChannelInterface log) throws KettleException {
+    public static JsonNode execute(HttpMethod method, LogChannelInterface log) throws KettleStepException {
         HttpClient client = getClient();
         JsonNode response = null;
         try {
@@ -50,7 +49,7 @@ public class SocrataPublishUtil {
             response = mapper.readTree(responseString);
         } catch (Exception ex) {
             log.logError(ex.getMessage());
-            throw new KettleException("Failure executing request: " + ex.getMessage());
+            throw new KettleStepException("Failure executing request: " + ex.getMessage());
         } finally {
             method.releaseConnection();
             log.logDebug("HttpClient connection released");
