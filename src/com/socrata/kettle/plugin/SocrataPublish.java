@@ -1,6 +1,5 @@
 package com.socrata.kettle.plugin;
 
-import org.apache.commons.httpclient.NameValuePair;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.PutMethod;
 import org.apache.commons.httpclient.methods.StringRequestEntity;
@@ -8,10 +7,14 @@ import org.apache.commons.httpclient.methods.multipart.FilePart;
 import org.apache.commons.httpclient.methods.multipart.MultipartRequestEntity;
 import org.apache.commons.httpclient.methods.multipart.Part;
 import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ArrayNode;
+import org.codehaus.jackson.node.ObjectNode;
 import org.pentaho.di.core.logging.LogChannelInterface;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.Base64;
 
 /**
@@ -27,7 +30,9 @@ public class SocrataPublish {
     private String authorize;
     private String datasetId;
     private String importConfigName;
+    private String writerMode;
     private File file;
+    private SocrataTextFileField[] outputFields;
 
     private int revisionSeq;
     private String createSourcePath;
@@ -47,39 +52,18 @@ public class SocrataPublish {
         authorize = Base64.getEncoder().encodeToString(credentials.getBytes());
         datasetId = meta.getDatasetName();
         importConfigName = meta.getImportConfig();
+        writerMode = meta.getWriterMode();
+        outputFields = meta.getOutputFields();
         this.file = file;
 
-        if (SocrataPublishUtil.hasValue(importConfigName)) {
-            createRevisionFromConfig();
-            createSource(this.file.toString());
-            uploadSourceData(this.file.toString());
-            getLatestOutput();
-            applyRevision();
-        } else {
-            
+        if (!SocrataPublishUtil.hasValue(importConfigName)) {
+            createImportConfig(meta);
         }
-    }
-
-    private void createRevision() throws IOException {
-
-        String url = domain + "/api/publishing/v1/revision/" + datasetId;
-        PostMethod httpPost = SocrataPublishUtil.getPost(url, host, authorize, "application/json");
-
-        JsonNode results = SocrataPublishUtil.execute(httpPost, log);
-        //Get revision_seq value
-        if (results != null) {
-            JsonNode revSeq = results.findValue("revision_seq");
-            revisionSeq = revSeq.asInt();
-            log.logDebug("Created revision sequence number: " + revisionSeq);
-
-            JsonNode csp = results.findValue("create_source");
-            createSourcePath = csp.asText();
-            log.logDebug(createSourcePath);
-
-            JsonNode apply = results.findValue("apply");
-            applyRevisionPath = apply.asText();
-            log.logDebug(applyRevisionPath);
-        }
+        createRevisionFromConfig();
+        createSource(this.file.toString());
+        uploadSourceData(this.file.toString());
+        getLatestOutput();
+        applyRevision();
     }
 
     private void createSource(String filename) throws IOException {
@@ -190,5 +174,81 @@ public class SocrataPublish {
             buildConfigPath = buildConfig.asText();
             log.logDebug(buildConfigPath);
         }
+    }
+
+    private void createImportConfig(SocrataPluginMeta meta) throws IOException {
+        String newImportConfigName = datasetId + ":" + LocalDateTime.now();
+        String dataAction;
+        if(writerMode.equalsIgnoreCase("upsert")) {
+            dataAction = "update";
+        } else if (writerMode.equalsIgnoreCase("replace")) {
+            dataAction = "replace";
+        } else {
+            throw new IOException("Invalid publishing data action");
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode root = mapper.createObjectNode();
+        root.put("name", newImportConfigName);
+        ObjectNode parseOptions = mapper.createObjectNode();
+        parseOptions.put("quote_char", "\"");
+        parseOptions.put("header_count", 1);
+        parseOptions.put("encoding", "utf8");
+        parseOptions.put("column_separator", ",");
+        parseOptions.put("column_header", 1);
+        root.put("parse_options", parseOptions);
+        root.put("data_action", dataAction);
+
+        ArrayNode columns = mapper.createArrayNode();
+        for (SocrataTextFileField field : outputFields) {
+            String transformExpr = "";
+            String dataType = field.getTypeDesc();
+            switch (dataType) {
+                case "Number":
+                    transformExpr = "to_number(`" + field.getFieldName() + "`)";
+                    break;
+                case "String":
+                    transformExpr = "to_text(`" + field.getFieldName() + "`)";
+                    break;
+                case "Location":
+                    break;
+                case "Boolean":
+                    transformExpr = "to_boolean(`" + field.getFieldName() + "`)";
+                    break;
+                case "Date":
+                    break;
+                case "Integer":
+                    transformExpr = "to_number(`" + field.getFieldName() + "`)";
+                    break;
+                case "Point":
+                    break;
+                case "Timestamp":
+                    transformExpr = "to_fixed_timestamp(`" + field.getFieldName() + "`)";
+                    break;
+                case "BigNumber":
+                    transformExpr = "to_number(`" + field.getFieldName() + "`)";
+                    break;
+                default:
+                    log.logError("Unrecognized column type: " + field.getName());
+            }
+
+            ObjectNode column = mapper.createObjectNode();
+            column.put("display_name", field.getName());
+            column.put("field_name", field.getFieldName());
+            column.put("transform_expr", transformExpr);
+            columns.add(column);
+        }
+        root.put("columns", columns);
+
+        String url = domain + "/api/publishing/v1/config";
+        PostMethod httpPost = SocrataPublishUtil.getPost(url, host, authorize, "application/json");
+        StringRequestEntity stringEntity = new StringRequestEntity(root.toString(), "application/json", "UTF-8");
+        httpPost.setRequestEntity(stringEntity);
+        JsonNode result = SocrataPublishUtil.execute(httpPost, log);
+        log.logDebug(result.asText());
+
+        SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();
+        updated.setImportConfig(newImportConfigName);
+        meta.replaceMeta(updated);
     }
 }
