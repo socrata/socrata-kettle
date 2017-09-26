@@ -1,5 +1,6 @@
 package com.socrata.kettle.plugin;
 
+import org.apache.commons.httpclient.methods.FileRequestEntity;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.PutMethod;
 import org.apache.commons.httpclient.methods.StringRequestEntity;
@@ -44,7 +45,7 @@ public class SocrataPublish {
     private String createRevisionPath;
     private String buildConfigPath;
 
-    public void publish(SocrataPluginMeta meta, File file, LogChannelInterface log) throws IOException {
+    public void publish(SocrataPluginMeta meta, File file, LogChannelInterface log) throws Exception {
         this.log = log;
         host = SocrataPublishUtil.setHost(meta);
         domain = meta.getDomain();
@@ -61,12 +62,12 @@ public class SocrataPublish {
         }
         createRevisionFromConfig();
         createSource(this.file.toString());
-        uploadSourceData(this.file.toString());
+        uploadSourceData();
         getLatestOutput();
         applyRevision();
     }
 
-    private void createSource(String filename) throws IOException {
+    private void createSource(String filename) throws Exception {
 
         PostMethod httpPost = SocrataPublishUtil.getPost(domain + createSourcePath, host, authorize, "application/json");
 
@@ -85,19 +86,29 @@ public class SocrataPublish {
         }
     }
 
-    private void uploadSourceData(String filename) throws IOException {
+    private void uploadSourceData() throws Exception {
 
         PostMethod httpPost = SocrataPublishUtil.getPost(domain + uploadDataPath, host, authorize, "text/csv");
-
-        Part[] parts = {
-                new FilePart(filename, file)
-        };
-
-        httpPost.setRequestEntity(new MultipartRequestEntity(parts, httpPost.getParams()));
+        FileRequestEntity fre = new FileRequestEntity(file, "text/csv");
+        httpPost.setRequestEntity(fre);
 
         JsonNode results = SocrataPublishUtil.execute(httpPost, log);
 
         if (results != null) {
+
+            String inputSchemaId = "";
+            JsonNode schemas = results.path("resource").path("schemas");
+            for (JsonNode schema : schemas) {
+                JsonNode outputSchemas = schema.path("output_schemas");
+                for (JsonNode outputSchema : outputSchemas) {
+                    JsonNode outputSchemaId = outputSchema.path("id");
+                    System.out.println(outputSchemaId.asInt());
+
+                    JsonNode inputSchema = outputSchema.path("input_schema_id");
+                    inputSchemaId = inputSchema.asText();
+                }
+            }
+
             JsonNode errors = results.findValue("error_count");
             int errorCount = errors.asInt();
             log.logBasic("Error count: " + errorCount);
@@ -106,16 +117,16 @@ public class SocrataPublish {
             }
 
             JsonNode rowErrors = results.findValue("row_errors");
-            rowErrorPath = rowErrors.asText();
+            rowErrorPath = rowErrors.asText().replace("{input_schema_id}", inputSchemaId);
             log.logDebug(rowErrorPath);
 
             JsonNode latestOutput = results.findValue("latest_output");
-            latestOutputPath = latestOutput.asText();
+            latestOutputPath = latestOutput.asText().replace("{input_schema_id}", inputSchemaId);
             log.logDebug(latestOutputPath);
         }
     }
 
-    private void createRevisionFromConfig() throws IOException {
+    private void createRevisionFromConfig() throws Exception {
 
         String url = domain;
         if (createRevisionPath == null || createRevisionPath.isEmpty()) {
@@ -143,7 +154,7 @@ public class SocrataPublish {
         }
     }
 
-    private void applyRevision() throws IOException {
+    private void applyRevision() throws Exception {
         PutMethod httpPut = SocrataPublishUtil.getPut(domain + applyRevisionPath, host, authorize, "application/json");
 
         String json = "{ \"output_schema_id\": " + outputSchemaId + " }";
@@ -160,7 +171,7 @@ public class SocrataPublish {
         }
     }
 
-    private void getLatestOutput() throws IOException {
+    private void getLatestOutput() throws Exception {
 
         JsonNode results = SocrataPublishUtil.execute(
                 SocrataPublishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log);
@@ -176,7 +187,7 @@ public class SocrataPublish {
         }
     }
 
-    private void createImportConfig(SocrataPluginMeta meta) throws IOException {
+    private void createImportConfig(SocrataPluginMeta meta) throws Exception {
         String newImportConfigName = datasetId + ":" + LocalDateTime.now();
         String dataAction;
         if(writerMode.equalsIgnoreCase("upsert")) {

@@ -33,14 +33,15 @@ public class SocrataPublishUtil {
         return httpClient;
     }
 
-    public static JsonNode execute(HttpMethod method, LogChannelInterface log) {
+    public static JsonNode execute(HttpMethod method, LogChannelInterface log) throws KettleException {
         HttpClient client = getClient();
         JsonNode response = null;
         try {
+            log.logDebug("Executing: " + method.getURI());
             int statusCode = client.executeMethod(method);
             log.logBasic("Request status code: " + statusCode);
 
-            if (statusCode != HttpStatus.SC_OK) {
+            if (statusCode != HttpStatus.SC_OK && statusCode != HttpStatus.SC_CREATED) {
                 throw new KettleStepException("Request failed: " + method.getStatusLine());
             }
 
@@ -49,11 +50,7 @@ public class SocrataPublishUtil {
             response = mapper.readTree(responseString);
         } catch (Exception ex) {
             log.logError(ex.getMessage());
-            try {
-                throw new KettleException("Failure executing request: " + ex.getMessage());
-            } catch (Exception e) {
-                log.logError("Unable to throw KettleStepException: " + e.getMessage());
-            }
+            throw new KettleException("Failure executing request: " + ex.getMessage());
         } finally {
             method.releaseConnection();
             log.logDebug("HttpClient connection released");

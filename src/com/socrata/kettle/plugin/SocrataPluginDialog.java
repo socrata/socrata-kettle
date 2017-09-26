@@ -1,5 +1,7 @@
 package com.socrata.kettle.plugin;
 
+import org.apache.commons.httpclient.methods.GetMethod;
+import org.codehaus.jackson.JsonNode;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.CTabFolder;
@@ -326,11 +328,16 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wImportConfig = new ComboVar(transMeta, wParametersGroup, SWT.SINGLE | SWT.READ_ONLY | SWT.BORDER);
         wImportConfig.setEditable(true);
 
-        //String upsert = Messages.getString("SocrataPluginDialog.WriterMode.Upsert");
-        //String replace = Messages.getString("SocrataPluginDialog.WriterMode.Replace");
-        //String create = Messages.getString("SocrataPluginDialog.WriterMode.Create");
-        //String delete = Messages.getString("SocrataPluginDialog.WriterMode.Delete");
-        wImportConfig.setItems(new String[]{upsert, replace, create, delete});
+        String[] importConfigs;
+        if (SocrataPublishUtil.hasValue(wDomain.getText()) &&
+                SocrataPublishUtil.hasValue(wUserName.getText()) &&
+                SocrataPublishUtil.hasValue(wPassword.getText())) {
+            importConfigs = getImportConfigs();
+        } else {
+            importConfigs = new String[] {""};
+        }
+
+        wImportConfig.setItems(importConfigs);
         wImportConfig.setData(upsert, "upsert");
         wImportConfig.setData(replace, "replace");
         wImportConfig.setData(create, "create");
@@ -778,6 +785,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wPublishDataset.setSelection(input.isPublishDataset());
         wPublicDataset.setSelection(input.isPublicDataset());
         wWriterMode.setText(input.getWriterMode());
+        wImportConfig.setText(input.getImportConfig());
         wNewDatasetName.setText(input.getNewDatasetName());
         wUseSocrataGeocoding.setSelection(input.isUseSocrataGeocoding());
         wDeleteTempFile.setSelection(input.isDeleteTempFile());
@@ -785,6 +793,17 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wProxyPort.setText(input.getProxyPort());
         wProxyUsername.setText(input.getProxyUsername());
         wProxyPassword.setText(input.getProxyPassword());
+
+        String[] importConfigs;
+        if (SocrataPublishUtil.hasValue(wDomain.getText()) &&
+                SocrataPublishUtil.hasValue(wUserName.getText()) &&
+                SocrataPublishUtil.hasValue(wPassword.getText())) {
+            importConfigs = getImportConfigs();
+        } else {
+            importConfigs = new String[] {""};
+        }
+
+        wImportConfig.setItems(importConfigs);
 
         for (int i = 0; i < input.getOutputFields().length; i++) {
             SocrataTextFileField field = input.getOutputFields()[i];
@@ -835,6 +854,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         spm.setPublishDataset(wPublishDataset.getSelection());
         spm.setPublicDataset(wPublicDataset.getSelection());
         spm.setWriterMode(wWriterMode.getText());
+        spm.setImportConfig(wImportConfig.getText());
         spm.setNewDatasetName(wNewDatasetName.getText());
         spm.setUseSocrataGeocoding(wUseSocrataGeocoding.getSelection());
         spm.setDeleteTempFile(wDeleteTempFile.getSelection());
@@ -970,5 +990,32 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
 
         Const.sortStrings(fieldNames);
         columnInfos[0].setComboValues(fieldNames);
+    }
+
+    private String[] getImportConfigs() {
+        List<String> importConfigs = new ArrayList<>();
+        String domain = wDomain.getText();
+        String host;
+        if (domain.startsWith("https://")) {
+            host = domain.replace("https://", "");
+        } else if (domain.startsWith("http://")) {
+            host = domain.replace("http://", "");
+        } else {
+            host = domain;
+            domain = "https://" + domain;
+        }
+
+        String url = domain + "/api/publishing/v1/config";
+        String credentials = wUserName.getText() + ":" + wPassword.getText();
+        String authorize = Base64.getEncoder().encodeToString(credentials.getBytes());
+
+        JsonNode result = SocrataPublishUtil.execute(SocrataPublishUtil.get(url, host, authorize, "application/json"), log);
+
+        for (JsonNode node : result) {
+            JsonNode name = node.path("resource").path("name");
+            importConfigs.add(name.asText());
+        }
+
+        return importConfigs.toArray(new String[importConfigs.size()]);
     }
 }
