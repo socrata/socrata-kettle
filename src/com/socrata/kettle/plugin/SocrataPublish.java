@@ -32,6 +32,7 @@ public class SocrataPublish {
     private String writerMode;
     private File file;
     private SocrataTextFileField[] outputFields;
+    private SocrataPluginMeta meta;
 
     private int revisionSeq;
     private String createSourcePath;
@@ -54,14 +55,14 @@ public class SocrataPublish {
         writerMode = meta.getWriterMode();
         outputFields = meta.getOutputFields();
         this.file = file;
+        this.meta = meta;
 
         if (!SocrataPublishUtil.hasValue(importConfigName)) {
-            createImportConfig(meta);
+            createImportConfig();
         }
         createRevisionFromConfig();
         createSource(this.file.toString());
         uploadSourceData();
-        //getLatestOutput();
         applyRevision();
     }
 
@@ -75,7 +76,7 @@ public class SocrataPublish {
 
         httpPost.setRequestEntity(string);
 
-        JsonNode results = SocrataPublishUtil.execute(httpPost, log);
+        JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
 
         if (results != null) {
             JsonNode bytes = results.findValue("bytes");
@@ -90,7 +91,7 @@ public class SocrataPublish {
         FileRequestEntity fre = new FileRequestEntity(file, "text/csv");
         httpPost.setRequestEntity(fre);
 
-        JsonNode results = SocrataPublishUtil.execute(httpPost, log);
+        JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
 
         if (results != null) {
 
@@ -135,7 +136,7 @@ public class SocrataPublish {
 
         PostMethod httpPost = SocrataPublishUtil.getPost(url, host, authorize, "application/json");
 
-        JsonNode results = SocrataPublishUtil.execute(httpPost, log);
+        JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
 
         if (results != null) {
             JsonNode revSeq = results.findValue("revision_seq");
@@ -161,7 +162,7 @@ public class SocrataPublish {
 
         httpPut.setRequestEntity(string);
 
-        JsonNode results = SocrataPublishUtil.execute(httpPut, log);
+        JsonNode results = SocrataPublishUtil.execute(httpPut, log, meta);
         if(results != null) {
             JsonNode statusNode = results.findValue("status");
             String status = statusNode.asText();
@@ -169,23 +170,7 @@ public class SocrataPublish {
         }
     }
 
-    private void getLatestOutput() throws IOException, KettleStepException {
-
-        JsonNode results = SocrataPublishUtil.execute(
-                SocrataPublishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log);
-
-        if (results != null) {
-            JsonNode id = results.path("resource").path("id");
-            outputSchemaId = id.asInt();
-            log.logDebug("Output Schema ID: " + outputSchemaId);
-
-            JsonNode buildConfig = results.findValue("build_config");
-            buildConfigPath = buildConfig.asText();
-            log.logDebug(buildConfigPath);
-        }
-    }
-
-    private void createImportConfig(SocrataPluginMeta meta) throws IOException, KettleStepException {
+    private void createImportConfig() throws IOException, KettleStepException {
         String newImportConfigName = datasetId + ":" + LocalDateTime.now();
         String dataAction;
         if(writerMode.equalsIgnoreCase("upsert")) {
@@ -220,16 +205,19 @@ public class SocrataPublish {
                     transformExpr = "to_text(`" + field.getFieldName() + "`)";
                     break;
                 case "Location":
+                    transformExpr = "to_location(`" + field.getFieldName() + "`)";
                     break;
                 case "Boolean":
                     transformExpr = "to_boolean(`" + field.getFieldName() + "`)";
                     break;
                 case "Date":
+                    transformExpr = "to_floating_timestamp(`" + field.getFieldName() + "`)";
                     break;
                 case "Integer":
                     transformExpr = "to_number(`" + field.getFieldName() + "`)";
                     break;
                 case "Point":
+                    transformExpr = "to_point(`" + field.getFieldName() + "`)";
                     break;
                 case "Timestamp":
                     transformExpr = "to_fixed_timestamp(`" + field.getFieldName() + "`)";
@@ -251,9 +239,10 @@ public class SocrataPublish {
 
         String url = domain + "/api/publishing/v1/config";
         PostMethod httpPost = SocrataPublishUtil.getPost(url, host, authorize, "application/json");
+
         StringRequestEntity stringEntity = new StringRequestEntity(root.toString(), "application/json", "UTF-8");
         httpPost.setRequestEntity(stringEntity);
-        JsonNode result = SocrataPublishUtil.execute(httpPost, log);
+        JsonNode result = SocrataPublishUtil.execute(httpPost, log, meta);
         log.logDebug(result.asText());
 
         SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();

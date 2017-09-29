@@ -1,9 +1,9 @@
 package com.socrata.kettle.plugin;
 
-import org.apache.commons.httpclient.NameValuePair;
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.PutMethod;
+import org.apache.commons.httpclient.methods.StringRequestEntity;
 import org.codehaus.jackson.JsonNode;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.exception.KettleException;
@@ -95,8 +95,6 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         }
 
         writeRowtoFile(data.outputRowMeta, r);
-
-
 
         return true;
     }
@@ -461,7 +459,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             String url = domain + "/api/views/" + meta.getDatasetName() + ".json";
             logDebug("Request URL: " + url);
             GetMethod get = SocrataPublishUtil.get(url, host, auth, "application/json");
-            JsonNode response = SocrataPublishUtil.execute(get, log);
+            JsonNode response = SocrataPublishUtil.execute(get, log, meta);
 
             if (response != null) {
                 JsonNode columns = response.path("columns");
@@ -565,14 +563,13 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
 
                 String url = domain + "/api/views" + nbe;
                 PostMethod httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
-                NameValuePair[] data = {
-                        new NameValuePair("name",  meta.getNewDatasetName())
-                };
-                httpPost.setRequestBody(data);
+                StringRequestEntity data = new StringRequestEntity("{\"name\": \"" + meta.getNewDatasetName() + "\"}",
+                        "application/json", "UTF-8");
+                httpPost.setRequestEntity(data);
 
                 logDebug("Creating new dataset");
 
-                JsonNode response = SocrataPublishUtil.execute(httpPost, log);
+                JsonNode response = SocrataPublishUtil.execute(httpPost, log, meta);
                 logBasic("Create datatset status: " + httpPost.getStatusLine());
 
                 if (response != null) {
@@ -582,37 +579,25 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 }
 
                 if (!datasetId.isEmpty()) {
-                    url = domain + "/api/views/" + datasetId + "/columns";
-                    httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
-
                     for (SocrataTextFileField field : meta.getOutputFields()) {
-                        String name = field.getName();
-                        String type = field.getTypeDesc().toLowerCase();
-                        String fieldName = name.toLowerCase().replace(" ", "_");
-
-                        if (type.equalsIgnoreCase("string")) {
-                            type = "text";
-                        } else if (type.equalsIgnoreCase("date") || type.equalsIgnoreCase("timestamp")) {
-                            type = "calendar_date";
-                        } else if (type.equalsIgnoreCase("integer") || type.equalsIgnoreCase("bignumber")) {
-                            type = "number";
-                        } else if (type.equalsIgnoreCase("boolean")) {
-                            type = "checkbox";
-                        }
-
-                        NameValuePair[] columnData = {
-                                new NameValuePair("name", name),
-                                new NameValuePair("dataTypeName", type),
-                                new NameValuePair("fieldName", fieldName)
-                        };
-                        httpPost.setRequestBody(columnData);
-
-                        logDebug("Creating column: " + name);
-
-                        response = SocrataPublishUtil.execute(httpPost, log);
-                        logRowlevel(response.toString());
-                        logBasic("Created column: " + name + " Status: " + httpPost.getStatusLine());
+                        field.setFieldName(field.getName().toLowerCase().replace(" ", "_"));
                     }
+
+                    SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();
+                    updated.setDatasetName(datasetId);
+                    updated.setWriterMode("Upsert");
+                    meta.replaceMeta(updated);
+
+                    if(repository != null) {
+                        logBasic("Saving update to repository");
+                        meta.saveRep(repository, metaStore, getTrans().getObjectId(), getObjectId());
+                    } else {
+                        logBasic("Saving update to existing transformation file");
+                        getTransMeta().addOrReplaceStep(meta.getParentStepMeta());
+                        getTransMeta().writeXML(getTrans().getFilename());
+                    }
+
+                    publishData();
                 }
 
                 // Publish Dataset
@@ -622,7 +607,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                     logBasic(new String(httpPost.getResponseBody()));
 
                     logDebug("Starting publish dataset");
-                    response = SocrataPublishUtil.execute(httpPost, log);
+                    response = SocrataPublishUtil.execute(httpPost, log, meta);
                     logRowlevel(response.toString());
                     logBasic("Publish status: " + httpPost.getStatusLine());
                 }
@@ -633,8 +618,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                     PutMethod httpPut = SocrataPublishUtil.getPut(putUrl, host, auth, "application/json");
 
                     logDebug("Beginning make dataset public");
-                    response = SocrataPublishUtil.execute(httpPut, log);
-                    logRowlevel(response.toString());
+                    SocrataPublishUtil.execute(httpPut, log, meta);
                     logBasic("Public status: " + httpPut.getStatusLine());
                 }
             } catch (Exception ex) {
@@ -642,22 +626,6 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 throw new KettleStepException("Error creating dataset");
             }
 
-            SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();
-            updated.setDatasetName(datasetId);
-            updated.setWriterMode("Upsert");
-            meta.replaceMeta(updated);
-
-            if(repository != null) {
-                logBasic("Saving update to repository");
-                meta.saveRep(repository, metaStore, getTrans().getObjectId(), getObjectId());
-            } else {
-                logBasic("Saving update to existing transformation file");
-                getTransMeta().addOrReplaceStep(meta.getParentStepMeta());
-                getTransMeta().writeXML(getTrans().getFilename());
-            }
-
-            getDatasetInfo();
-            publishData();
         } catch (Exception ex) {
             logError(ex.getMessage());
             throw new KettleStepException("Error creating dataset");

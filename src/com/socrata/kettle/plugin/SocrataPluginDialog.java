@@ -17,6 +17,7 @@ import org.eclipse.swt.widgets.*;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.Props;
 import org.pentaho.di.core.exception.KettleException;
+import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.core.row.ValueMeta;
 import org.pentaho.di.core.row.ValueMetaInterface;
@@ -327,17 +328,6 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
 
         wImportConfig = new ComboVar(transMeta, wParametersGroup, SWT.SINGLE | SWT.READ_ONLY | SWT.BORDER);
         wImportConfig.setEditable(true);
-
-        String[] importConfigs;
-        if (SocrataPublishUtil.hasValue(wDomain.getText()) &&
-                SocrataPublishUtil.hasValue(wUserName.getText()) &&
-                SocrataPublishUtil.hasValue(wPassword.getText())) {
-            importConfigs = getImportConfigs();
-        } else {
-            importConfigs = new String[] {""};
-        }
-
-        wImportConfig.setItems(importConfigs);
         wImportConfig.setData(upsert, "upsert");
         wImportConfig.setData(replace, "replace");
         wImportConfig.setData(create, "create");
@@ -785,7 +775,6 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wPublishDataset.setSelection(input.isPublishDataset());
         wPublicDataset.setSelection(input.isPublicDataset());
         wWriterMode.setText(input.getWriterMode());
-        wImportConfig.setText(input.getImportConfig());
         wNewDatasetName.setText(input.getNewDatasetName());
         wUseSocrataGeocoding.setSelection(input.isUseSocrataGeocoding());
         wDeleteTempFile.setSelection(input.isDeleteTempFile());
@@ -794,16 +783,22 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wProxyUsername.setText(input.getProxyUsername());
         wProxyPassword.setText(input.getProxyPassword());
 
-        String[] importConfigs;
-        if (SocrataPublishUtil.hasValue(wDomain.getText()) &&
-                SocrataPublishUtil.hasValue(wUserName.getText()) &&
-                SocrataPublishUtil.hasValue(wPassword.getText())) {
-            importConfigs = getImportConfigs();
-        } else {
-            importConfigs = new String[] {""};
-        }
+        try {
+            String[] importConfigs;
+            if (SocrataPublishUtil.hasValue(wDomain.getText()) &&
+                    SocrataPublishUtil.hasValue(wUserName.getText()) &&
+                    SocrataPublishUtil.hasValue(wPassword.getText())) {
+                importConfigs = getImportConfigs();
 
-        wImportConfig.setItems(importConfigs);
+            } else {
+                importConfigs = new String[] {""};
+            }
+
+            wImportConfig.setItems(importConfigs);
+        } catch (KettleStepException ex) {
+            logError(ex.getMessage());
+        }
+        wImportConfig.setText(input.getImportConfig());
 
         for (int i = 0; i < input.getOutputFields().length; i++) {
             SocrataTextFileField field = input.getOutputFields()[i];
@@ -992,7 +987,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         columnInfos[0].setComboValues(fieldNames);
     }
 
-    private String[] getImportConfigs() {
+    private String[] getImportConfigs() throws KettleStepException {
         List<String> importConfigs = new ArrayList<>();
         String domain = wDomain.getText();
         String host;
@@ -1009,7 +1004,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         String credentials = wUserName.getText() + ":" + wPassword.getText();
         String authorize = Base64.getEncoder().encodeToString(credentials.getBytes());
 
-        JsonNode result = SocrataPublishUtil.execute(SocrataPublishUtil.get(url, host, authorize, "application/json"), log);
+        JsonNode result = SocrataPublishUtil.execute(SocrataPublishUtil.get(url, host, authorize, "application/json"), log, input);
 
         for (JsonNode node : result) {
             JsonNode name = node.path("resource").path("name");

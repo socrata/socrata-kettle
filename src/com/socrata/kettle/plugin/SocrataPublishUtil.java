@@ -1,9 +1,7 @@
 package com.socrata.kettle.plugin;
 
-import org.apache.commons.httpclient.DefaultHttpMethodRetryHandler;
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.HttpMethod;
-import org.apache.commons.httpclient.HttpStatus;
+import org.apache.commons.httpclient.*;
+import org.apache.commons.httpclient.auth.AuthScope;
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.PutMethod;
@@ -12,6 +10,8 @@ import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.logging.LogChannelInterface;
+
+import java.io.InputStream;
 
 /**
  * @author malindac
@@ -24,16 +24,30 @@ public class SocrataPublishUtil {
     private static String appToken = "Eu1EiCmxZN4DWT9UmiXCLQpl6";
     private static ObjectMapper mapper = new ObjectMapper();
 
-    private static HttpClient getClient() {
+    private static HttpClient getClient(SocrataPluginMeta meta) {
         if (httpClient == null) {
             httpClient = new HttpClient();
+
+            // Add proxy details if applicable
+            if (SocrataPublishUtil.hasValue(meta.getProxyHost()) && SocrataPublishUtil.hasValue(meta.getProxyPort())) {
+                HostConfiguration config = httpClient.getHostConfiguration();
+                config.setProxy(meta.getProxyHost(), Integer.parseInt(meta.getProxyPort()));
+
+                if (SocrataPublishUtil.hasValue(meta.getProxyUsername())
+                        && SocrataPublishUtil.hasValue(meta.getProxyPassword())) {
+                    Credentials credentials = new UsernamePasswordCredentials(meta.getProxyUsername(), meta.getProxyPassword());
+                    AuthScope authScope = new AuthScope(meta.getProxyHost(), Integer.parseInt(meta.getProxyPort()));
+
+                    httpClient.getState().setProxyCredentials(authScope, credentials);
+                }
+            }
         }
 
         return httpClient;
     }
 
-    public static JsonNode execute(HttpMethod method, LogChannelInterface log) throws KettleStepException {
-        HttpClient client = getClient();
+    public static JsonNode execute(HttpMethod method, LogChannelInterface log, SocrataPluginMeta meta) throws KettleStepException {
+        HttpClient client = getClient(meta);
         JsonNode response = null;
         try {
             log.logDebug("Executing: " + method.getURI());
@@ -44,9 +58,12 @@ public class SocrataPublishUtil {
                 throw new KettleStepException("Request failed: " + method.getStatusLine());
             }
 
-            String responseString = method.getResponseBodyAsString();
-            log.logDebug(responseString);
-            response = mapper.readTree(responseString);
+            try {
+                InputStream responseStream = method.getResponseBodyAsStream();
+                response = mapper.readTree(responseStream);
+            } catch (Exception e) {
+                log.logDebug(e.getMessage());
+            }
         } catch (Exception ex) {
             log.logError(ex.getMessage());
             throw new KettleStepException("Failure executing request: " + ex.getMessage());

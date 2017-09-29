@@ -350,6 +350,7 @@ public class SocrataPluginMeta extends BaseStepMeta implements StepMetaInterface
         publishDataset = false;
         publicDataset = false;
         writerMode = "";
+        importConfig = "";
         newDatasetName = "";
         useSocrataGeocoding = false;
         deleteTempFile = false;
