@@ -1,5 +1,6 @@
 package com.socrata.kettle.plugin;
 
+import org.apache.commons.httpclient.Header;
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.PutMethod;
@@ -538,93 +539,124 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
     }
 
     private void createDataset() throws KettleStepException {
+        String datasetId = "";
+
+        String user = meta.getUser() + ":" + meta.getPassword();
+        String auth = Base64.getEncoder().encodeToString(user.getBytes());
+
+        String host = SocrataPublishUtil.setHost(meta);
+        String domain = meta.getDomain();
+
+        boolean isNbe = false;
+
+        for (SocrataTextFileField field : meta.getOutputFields()) {
+            if (field.getTypeDesc().equalsIgnoreCase("point")) {
+                isNbe = true;
+            }
+        }
+
         try {
-            String datasetId = "";
-
-            String user = meta.getUser() + ":" + meta.getPassword();
-            String auth = Base64.getEncoder().encodeToString(user.getBytes());
-
-            String host = SocrataPublishUtil.setHost(meta);
-            String domain = meta.getDomain();
-
-            boolean isNbe = false;
-
-            for (SocrataTextFileField field : meta.getOutputFields()) {
-                if (field.getTypeDesc().equalsIgnoreCase("point")) {
-                    isNbe = true;
-                }
+            String nbe = "";
+            if (isNbe) {
+                nbe = "?nbe=true";
             }
 
-            try {
-                String nbe = "";
-                if (isNbe) {
-                    nbe = "?nbe=true";
+            String url = domain + "/api/views" + nbe;
+            PostMethod httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
+            StringRequestEntity data = new StringRequestEntity("{\"name\": \"" + meta.getNewDatasetName() + "\"}",
+                    "application/json", "UTF-8");
+            httpPost.setRequestEntity(data);
+
+            logDebug("Creating new dataset");
+
+            JsonNode response = SocrataPublishUtil.execute(httpPost, log, meta);
+            logBasic("Create datatset status: " + httpPost.getStatusLine());
+            httpPost.releaseConnection();
+
+            if (response != null) {
+                JsonNode id = response.path("id");
+                datasetId = id.asText();
+                logBasic("New Dataset ID: " + datasetId);
+            }
+
+            if (!datasetId.isEmpty()) {
+                for (SocrataTextFileField field : meta.getOutputFields()) {
+                    field.setFieldName(field.getName().toLowerCase().replace(" ", "_"));
                 }
 
-                String url = domain + "/api/views" + nbe;
-                PostMethod httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
-                StringRequestEntity data = new StringRequestEntity("{\"name\": \"" + meta.getNewDatasetName() + "\"}",
-                        "application/json", "UTF-8");
-                httpPost.setRequestEntity(data);
+                String columnUrl = domain + "/api/views/" + datasetId + "/columns";
+                for (SocrataTextFileField field : meta.getOutputFields()) {
+                    PostMethod columnPost = SocrataPublishUtil.getPost(columnUrl, host, auth, "application/json");
+                    String name = field.getName();
+                    String type = field.getTypeDesc().toLowerCase();
+                    String fieldName = name.toLowerCase().replace(" ", "_");
 
-                logDebug("Creating new dataset");
-
-                JsonNode response = SocrataPublishUtil.execute(httpPost, log, meta);
-                logBasic("Create datatset status: " + httpPost.getStatusLine());
-
-                if (response != null) {
-                    JsonNode id = response.path("id");
-                    datasetId = id.asText();
-                    logBasic("New Dataset ID: " + datasetId);
-                }
-
-                if (!datasetId.isEmpty()) {
-                    for (SocrataTextFileField field : meta.getOutputFields()) {
-                        field.setFieldName(field.getName().toLowerCase().replace(" ", "_"));
+                    if (type.equalsIgnoreCase("string")) {
+                        type = "text";
+                    } else if (type.equalsIgnoreCase("date") || type.equalsIgnoreCase("timestamp")) {
+                        type = "calendar_date";
+                    } else if (type.equalsIgnoreCase("integer") || type.equalsIgnoreCase("bignumber")) {
+                        type = "number";
+                    } else if (type.equalsIgnoreCase("boolean")) {
+                        type = "checkbox";
                     }
 
-                    SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();
-                    updated.setDatasetName(datasetId);
-                    updated.setWriterMode("Upsert");
-                    meta.replaceMeta(updated);
+                    //String columnJson = "{\"name\": \"" + name + "\",\"dataTypeName\": \"" + type + "\",\"fieldName\": \"" + fieldName + "\"}";
+                    String columnJson = "{\"name\": \"" + name + "\",\"dataTypeName\": \"" + type + "\"}";
+                    logDebug(columnJson);
+                    StringRequestEntity columnData = new StringRequestEntity(columnJson, "application/json", "UTF-8");
 
-                    if(repository != null) {
-                        logBasic("Saving update to repository");
-                        meta.saveRep(repository, metaStore, getTrans().getObjectId(), getObjectId());
-                    } else {
-                        logBasic("Saving update to existing transformation file");
-                        getTransMeta().addOrReplaceStep(meta.getParentStepMeta());
-                        getTransMeta().writeXML(getTrans().getFilename());
+                    columnPost.setRequestEntity(columnData);
+
+                    logDebug("Creating column: " + name);
+                    for (Header h : columnPost.getRequestHeaders()) {
+                        logDebug(h.toString());
                     }
 
-                    publishData();
-                }
-
-                // Publish Dataset
-                if (meta.isPublishDataset()) {
-                    url = domain + "/api/views/" + datasetId + "/publication.json";
-                    httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
-                    logBasic(new String(httpPost.getResponseBody()));
-
-                    logDebug("Starting publish dataset");
-                    response = SocrataPublishUtil.execute(httpPost, log, meta);
+                    response = SocrataPublishUtil.execute(columnPost, log, meta);
                     logRowlevel(response.toString());
-                    logBasic("Publish status: " + httpPost.getStatusLine());
+                    logBasic("Created column: " + name + " Status: " + columnPost.getStatusLine());
+                    columnPost.releaseConnection();
+                    columnPost = null;
                 }
-
-                // Public Dataset
-                if (meta.isPublicDataset()) {
-                    String putUrl = domain + "/api/views/" + datasetId + ".json?accessType=WEBSITE&method=setPermission&value=public.read";
-                    PutMethod httpPut = SocrataPublishUtil.getPut(putUrl, host, auth, "application/json");
-
-                    logDebug("Beginning make dataset public");
-                    SocrataPublishUtil.execute(httpPut, log, meta);
-                    logBasic("Public status: " + httpPut.getStatusLine());
-                }
-            } catch (Exception ex) {
-                logError(ex.getMessage());
-                throw new KettleStepException("Error creating dataset");
             }
+
+            // Publish Dataset
+            if (meta.isPublishDataset()) {
+                url = domain + "/api/views/" + datasetId + "/publication.json";
+                httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
+
+                logDebug("Starting publish dataset");
+                response = SocrataPublishUtil.execute(httpPost, log, meta);
+                logRowlevel(response.toString());
+                logBasic("Publish status: " + httpPost.getStatusLine());
+            }
+
+            // Public Dataset
+            if (meta.isPublicDataset()) {
+                String putUrl = domain + "/api/views/" + datasetId + ".json?accessType=WEBSITE&method=setPermission&value=public.read";
+                PutMethod httpPut = SocrataPublishUtil.getPut(putUrl, host, auth, "application/json");
+
+                logDebug("Beginning make dataset public");
+                SocrataPublishUtil.execute(httpPut, log, meta);
+                logBasic("Public status: " + httpPut.getStatusLine());
+            }
+
+            SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();
+            updated.setDatasetName(datasetId);
+            updated.setWriterMode("Upsert");
+            meta.replaceMeta(updated);
+
+            if(repository != null) {
+                logBasic("Saving update to repository");
+                meta.saveRep(repository, metaStore, getTrans().getObjectId(), getObjectId());
+            } else {
+                logBasic("Saving update to existing transformation file");
+                getTransMeta().addOrReplaceStep(meta.getParentStepMeta());
+                getTransMeta().writeXML(getTrans().getFilename());
+            }
+
+            publishData();
 
         } catch (Exception ex) {
             logError(ex.getMessage());

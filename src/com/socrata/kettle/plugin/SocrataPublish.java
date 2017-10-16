@@ -58,12 +58,38 @@ public class SocrataPublish {
         this.meta = meta;
 
         if (!SocrataPublishUtil.hasValue(importConfigName)) {
-            createImportConfig();
+            createRevision();
+        } else {
+            createRevisionFromConfig();
         }
-        createRevisionFromConfig();
         createSource(this.file.toString());
         uploadSourceData();
+        getLatestOutput();
         applyRevision();
+    }
+
+    private void createRevision() throws IOException, KettleStepException {
+
+        String url = domain + "/api/publishing/v1/revision/" + datasetId;
+        PostMethod httpPost = SocrataPublishUtil.getPost(url, host, authorize, "application/json");
+
+        JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
+
+        //Get revision_seq value
+        if (results != null) {
+
+            JsonNode revisionSequence = results.path("resource").path("revision_seq");
+            revisionSeq = revisionSequence.asInt();
+            log.logDebug("New revision sequence: " + revisionSeq);
+
+            JsonNode createSource = results.path("links").path("create_source");
+            createSourcePath = createSource.asText();
+            log.logDebug(createSourcePath);
+
+            JsonNode apply = results.path("links").path("apply");
+            applyRevisionPath = apply.asText();
+            log.logDebug(applyRevisionPath);
+        }
     }
 
     private void createSource(String filename) throws IOException, KettleStepException {
@@ -75,7 +101,6 @@ public class SocrataPublish {
         log.logDebug(json);
 
         httpPost.setRequestEntity(string);
-
         JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
 
         if (results != null) {
@@ -90,7 +115,6 @@ public class SocrataPublish {
         PostMethod httpPost = SocrataPublishUtil.getPost(domain + uploadDataPath, host, authorize, "text/csv");
         FileRequestEntity fre = new FileRequestEntity(file, "text/csv");
         httpPost.setRequestEntity(fre);
-
         JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
 
         if (results != null) {
@@ -135,7 +159,6 @@ public class SocrataPublish {
         }
 
         PostMethod httpPost = SocrataPublishUtil.getPost(url, host, authorize, "application/json");
-
         JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
 
         if (results != null) {
@@ -150,6 +173,27 @@ public class SocrataPublish {
             JsonNode apply = results.findValue("apply");
             applyRevisionPath = apply.asText();
             log.logDebug(applyRevisionPath);
+        }
+    }
+
+    private void getLatestOutput() throws IOException, KettleStepException {
+
+        JsonNode results = SocrataPublishUtil.execute(
+                SocrataPublishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
+        log.logDebug(results.toString());
+        if (results != null) {
+            JsonNode completedAt = results.path("resource").path("completed_at");
+            log.logDebug(completedAt.asText());
+            if (completedAt.asText() == null || completedAt.asText().equalsIgnoreCase("null") || completedAt.asText().isEmpty()) {
+                getLatestOutput();
+            } else {
+                JsonNode errors = results.path("resource").path("error_count");
+                int errorCount = errors.asInt();
+                log.logBasic("Error count: " + errorCount);
+                if (errorCount > 0) {
+                    throw new KettleStepException("Errors transforming data during publish");
+                }
+            }
         }
     }
 
