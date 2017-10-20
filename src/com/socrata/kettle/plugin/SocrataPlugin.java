@@ -74,11 +74,10 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
 
         if (r == null) {
             logDebug("Last row of the file has processed");
-            // Publish temp file using DataSync
+            // Publish temp file
             if (writerMode.equalsIgnoreCase("create")) {
                 createDataset();
             } else {
-                //sendToDatasync(meta.getDatasetName(), meta.getWriterMode());
                 publishData();
             }
 
@@ -584,66 +583,14 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                     field.setFieldName(field.getName().toLowerCase().replace(" ", "_"));
                 }
 
-                String columnUrl = domain + "/api/views/" + datasetId + "/columns";
-                for (SocrataTextFileField field : meta.getOutputFields()) {
-                    PostMethod columnPost = SocrataPublishUtil.getPost(columnUrl, host, auth, "application/json");
-                    String name = field.getName();
-                    String type = field.getTypeDesc().toLowerCase();
-                    String fieldName = name.toLowerCase().replace(" ", "_");
+                SocrataPluginMeta updatedMeta = (SocrataPluginMeta) meta.clone();
+                updatedMeta.setDatasetName(datasetId);
+                meta.replaceMeta(updatedMeta);
 
-                    if (type.equalsIgnoreCase("string")) {
-                        type = "text";
-                    } else if (type.equalsIgnoreCase("date") || type.equalsIgnoreCase("timestamp")) {
-                        type = "calendar_date";
-                    } else if (type.equalsIgnoreCase("integer") || type.equalsIgnoreCase("bignumber")) {
-                        type = "number";
-                    } else if (type.equalsIgnoreCase("boolean")) {
-                        type = "checkbox";
-                    }
-
-                    //String columnJson = "{\"name\": \"" + name + "\",\"dataTypeName\": \"" + type + "\",\"fieldName\": \"" + fieldName + "\"}";
-                    String columnJson = "{\"name\": \"" + name + "\",\"dataTypeName\": \"" + type + "\"}";
-                    logDebug(columnJson);
-                    StringRequestEntity columnData = new StringRequestEntity(columnJson, "application/json", "UTF-8");
-
-                    columnPost.setRequestEntity(columnData);
-
-                    logDebug("Creating column: " + name);
-                    for (Header h : columnPost.getRequestHeaders()) {
-                        logDebug(h.toString());
-                    }
-
-                    response = SocrataPublishUtil.execute(columnPost, log, meta);
-                    logRowlevel(response.toString());
-                    logBasic("Created column: " + name + " Status: " + columnPost.getStatusLine());
-                    columnPost.releaseConnection();
-                    columnPost = null;
-                }
-            }
-
-            // Publish Dataset
-            if (meta.isPublishDataset()) {
-                url = domain + "/api/views/" + datasetId + "/publication.json";
-                httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
-
-                logDebug("Starting publish dataset");
-                response = SocrataPublishUtil.execute(httpPost, log, meta);
-                logRowlevel(response.toString());
-                logBasic("Publish status: " + httpPost.getStatusLine());
-            }
-
-            // Public Dataset
-            if (meta.isPublicDataset()) {
-                String putUrl = domain + "/api/views/" + datasetId + ".json?accessType=WEBSITE&method=setPermission&value=public.read";
-                PutMethod httpPut = SocrataPublishUtil.getPut(putUrl, host, auth, "application/json");
-
-                logDebug("Beginning make dataset public");
-                SocrataPublishUtil.execute(httpPut, log, meta);
-                logBasic("Public status: " + httpPut.getStatusLine());
+                publishData();
             }
 
             SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();
-            updated.setDatasetName(datasetId);
             updated.setWriterMode("Upsert");
             meta.replaceMeta(updated);
 
@@ -655,8 +602,6 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                 getTransMeta().addOrReplaceStep(meta.getParentStepMeta());
                 getTransMeta().writeXML(getTrans().getFilename());
             }
-
-            publishData();
 
         } catch (Exception ex) {
             logError(ex.getMessage());

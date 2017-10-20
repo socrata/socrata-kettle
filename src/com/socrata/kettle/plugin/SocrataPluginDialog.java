@@ -75,14 +75,14 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
     private FormData fdPublicDataset;
     private FormData fdlWriterMode;
     private FormData fdWriterMode;
-    private FormData fdlImportConfig;
-    private FormData fdImportConfig;
     private FormData fdlNewDatasetName;
     private FormData fdNewDatasetName;
     private FormData fdlUseSocrataGeocoding;
     private FormData fdUseSocrataGeocoding;
     private FormData fdlDeleteTempFile;
     private FormData fdDeleteTempFile;
+    private FormData fdlSetAsideErrors;
+    private FormData fdSetAsideErrors;
     private Label wlDatasetName;
     private TextVar wDatasetName;
     private Label wlPublishDataset;
@@ -91,14 +91,14 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
     private Button wPublicDataset;
     private Label wlWriterMode;
     private ComboVar wWriterMode;
-    private Label wlImportConfig;
-    private ComboVar wImportConfig;
     private Label wlNewDatasetName;
     private TextVar wNewDatasetName;
     private Label wlUseSocrataGeocoding;
     private Button wUseSocrataGeocoding;
     private Label wlDeleteTempFile;
     private Button wDeleteTempFile;
+    private Label wlSetAsideErrors;
+    private Button wSetAsideErrors;
 
     private Group wProxyGroup;
     private FormData fdProxyGroup;
@@ -292,13 +292,14 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         String upsert = Messages.getString("SocrataPluginDialog.WriterMode.Upsert");
         String replace = Messages.getString("SocrataPluginDialog.WriterMode.Replace");
         String create = Messages.getString("SocrataPluginDialog.WriterMode.Create");
-        String delete = Messages.getString("SocrataPluginDialog.WriterMode.Delete");
+        //String delete = Messages.getString("SocrataPluginDialog.WriterMode.Delete");
         //wWriterMode.setItems(new String[]{upsert, replace});
-        wWriterMode.setItems(new String[]{upsert, replace, create, delete});
+        //wWriterMode.setItems(new String[]{upsert, replace, create, delete});
+        wWriterMode.setItems(new String[]{upsert, replace, create});
         wWriterMode.setData(upsert, "upsert");
         wWriterMode.setData(replace, "replace");
         wWriterMode.setData(create, "create");
-        wWriterMode.setData(delete, "delete");
+        //wWriterMode.setData(delete, "delete");
 
         props.setLook(wWriterMode);
         wWriterMode.addModifyListener(lsMod);
@@ -316,46 +317,13 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         fdWriterMode.right = new FormAttachment(100, 0);
         wWriterMode.setLayoutData(fdWriterMode);
 
-        // Import Config
-        wlImportConfig = new Label(wParametersGroup, SWT.RIGHT);
-        wlImportConfig.setText(Messages.getString("SocrataPluginDialog.ImportConfig.Label"));
-        props.setLook(wlImportConfig);
-        fdlImportConfig = new FormData();
-        fdlImportConfig.left = new FormAttachment(0, 0);
-        fdlImportConfig.top = new FormAttachment(wWriterMode, margin);
-        fdlImportConfig.right = new FormAttachment(middle, -margin);
-        wlImportConfig.setLayoutData(fdlImportConfig);
-
-        wImportConfig = new ComboVar(transMeta, wParametersGroup, SWT.SINGLE | SWT.READ_ONLY | SWT.BORDER);
-        wImportConfig.setEditable(true);
-        wImportConfig.setData(upsert, "upsert");
-        wImportConfig.setData(replace, "replace");
-        wImportConfig.setData(create, "create");
-        wImportConfig.setData(delete, "delete");
-
-        props.setLook(wImportConfig);
-        wImportConfig.addModifyListener(lsMod);
-        wImportConfig.addSelectionListener(new SelectionAdapter() {
-            @Override
-            public void widgetSelected(SelectionEvent e) {
-                input.setChanged();
-                setActive();
-            }
-        });
-        wImportConfig.setToolTipText(Messages.getString("SocrataPluginDialog.ImportConfig.Tooltip"));
-        fdImportConfig = new FormData();
-        fdImportConfig.left = new FormAttachment(middle, 0);
-        fdImportConfig.top = new FormAttachment(wWriterMode, margin);
-        fdImportConfig.right = new FormAttachment(100, 0);
-        wImportConfig.setLayoutData(fdImportConfig);
-
         // New Dataset Name
         wlNewDatasetName = new Label(wParametersGroup, SWT.RIGHT);
         wlNewDatasetName.setText(Messages.getString("SocrataPluginDialog.NewDatasetName.Label"));
         props.setLook(wlNewDatasetName);
         fdlNewDatasetName = new FormData();
         fdlNewDatasetName.left = new FormAttachment(0, 0);
-        fdlNewDatasetName.top = new FormAttachment(wImportConfig, margin);
+        fdlNewDatasetName.top = new FormAttachment(wWriterMode, margin);
         fdlNewDatasetName.right = new FormAttachment(middle, -margin);
         wlNewDatasetName.setLayoutData(fdlNewDatasetName);
 
@@ -364,7 +332,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wNewDatasetName.addModifyListener(lsMod);
         fdNewDatasetName = new FormData();
         fdNewDatasetName.left = new FormAttachment(middle, 0);
-        fdNewDatasetName.top = new FormAttachment(wImportConfig, margin);
+        fdNewDatasetName.top = new FormAttachment(wWriterMode, margin);
         fdNewDatasetName.right = new FormAttachment(100, 0);
         wNewDatasetName.setLayoutData(fdNewDatasetName);
 
@@ -407,7 +375,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wPublicDataset.setLayoutData(fdPublicDataset);
 
         // Use Socrata Geocoding?
-        wlUseSocrataGeocoding = new Label(wParametersGroup, SWT.RIGHT);
+        /*wlUseSocrataGeocoding = new Label(wParametersGroup, SWT.RIGHT);
         wlUseSocrataGeocoding.setText(Messages.getString("SocrataPluginDialog.UseSocrataGeocoding.Label"));
         props.setLook(wlUseSocrataGeocoding);
         fdlUseSocrataGeocoding = new FormData();
@@ -423,7 +391,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         fdUseSocrataGeocoding.left = new FormAttachment(middle, 0);
         fdUseSocrataGeocoding.top = new FormAttachment(wPublicDataset, margin);
         fdUseSocrataGeocoding.right = new FormAttachment(100, 0);
-        wUseSocrataGeocoding.setLayoutData(fdUseSocrataGeocoding);
+        wUseSocrataGeocoding.setLayoutData(fdUseSocrataGeocoding);*/
 
         // Delete Temp csv File After Processing?
         wlDeleteTempFile = new Label(wParametersGroup, SWT.RIGHT);
@@ -431,7 +399,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         props.setLook(wlDeleteTempFile);
         fdlDeleteTempFile = new FormData();
         fdlDeleteTempFile.left = new FormAttachment(0, 0);
-        fdlDeleteTempFile.top = new FormAttachment(wUseSocrataGeocoding, margin);
+        fdlDeleteTempFile.top = new FormAttachment(wPublicDataset, margin);
         fdlDeleteTempFile.right = new FormAttachment(middle, -margin);
         wlDeleteTempFile.setLayoutData(fdlDeleteTempFile);
 
@@ -440,9 +408,28 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         props.setLook(wDeleteTempFile);
         fdDeleteTempFile = new FormData();
         fdDeleteTempFile.left = new FormAttachment(middle, 0);
-        fdDeleteTempFile.top = new FormAttachment(wUseSocrataGeocoding, margin);
+        fdDeleteTempFile.top = new FormAttachment(wPublicDataset, margin);
         fdDeleteTempFile.right = new FormAttachment(100, 0);
         wDeleteTempFile.setLayoutData(fdDeleteTempFile);
+
+        // Set Aside Errors?
+        wlSetAsideErrors = new Label(wParametersGroup, SWT.RIGHT);
+        wlSetAsideErrors.setText(Messages.getString("SocrataPluginDialog.SetAsideErrors.Label"));
+        props.setLook(wlSetAsideErrors);
+        fdlSetAsideErrors = new FormData();
+        fdlSetAsideErrors.left = new FormAttachment(0, 0);
+        fdlSetAsideErrors.top = new FormAttachment(wDeleteTempFile, margin);
+        fdlSetAsideErrors.right = new FormAttachment(middle, -margin);
+        wlSetAsideErrors.setLayoutData(fdlSetAsideErrors);
+
+        wSetAsideErrors = new Button(wParametersGroup, SWT.CHECK);
+        wSetAsideErrors.setToolTipText(Messages.getString("SocrataPluginDialog.SetAsideErrors.Tooltip"));
+        props.setLook(wSetAsideErrors);
+        fdSetAsideErrors = new FormData();
+        fdSetAsideErrors.left = new FormAttachment(middle, 0);
+        fdSetAsideErrors.top = new FormAttachment(wDeleteTempFile, margin);
+        fdSetAsideErrors.right = new FormAttachment(100, 0);
+        wSetAsideErrors.setLayoutData(fdSetAsideErrors);
 
         fdParametersGroup = new FormData();
         fdParametersGroup.left = new FormAttachment(0, margin);
@@ -715,8 +702,8 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wlNewDatasetName.setEnabled(enable);
         wNewDatasetName.setEnabled(enable);
 
-        wlPublicDataset.setEnabled(enable);
-        wPublicDataset.setEnabled(enable);
+        //wlPublicDataset.setEnabled(enable);
+        //wPublicDataset.setEnabled(enable);
 
         wlPublishDataset.setEnabled(enable);
         wPublishDataset.setEnabled(enable);
@@ -776,29 +763,13 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wPublicDataset.setSelection(input.isPublicDataset());
         wWriterMode.setText(input.getWriterMode());
         wNewDatasetName.setText(input.getNewDatasetName());
-        wUseSocrataGeocoding.setSelection(input.isUseSocrataGeocoding());
+        //wUseSocrataGeocoding.setSelection(input.isUseSocrataGeocoding());
         wDeleteTempFile.setSelection(input.isDeleteTempFile());
+        wSetAsideErrors.setSelection(input.isSetAsideErrors());
         wProxyHost.setText(input.getProxyHost());
         wProxyPort.setText(input.getProxyPort());
         wProxyUsername.setText(input.getProxyUsername());
         wProxyPassword.setText(input.getProxyPassword());
-
-        try {
-            String[] importConfigs;
-            if (SocrataPublishUtil.hasValue(wDomain.getText()) &&
-                    SocrataPublishUtil.hasValue(wUserName.getText()) &&
-                    SocrataPublishUtil.hasValue(wPassword.getText())) {
-                importConfigs = getImportConfigs();
-
-            } else {
-                importConfigs = new String[] {""};
-            }
-
-            wImportConfig.setItems(importConfigs);
-        } catch (KettleStepException ex) {
-            logError(ex.getMessage());
-        }
-        wImportConfig.setText(input.getImportConfig());
 
         for (int i = 0; i < input.getOutputFields().length; i++) {
             SocrataTextFileField field = input.getOutputFields()[i];
@@ -849,10 +820,10 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         spm.setPublishDataset(wPublishDataset.getSelection());
         spm.setPublicDataset(wPublicDataset.getSelection());
         spm.setWriterMode(wWriterMode.getText());
-        spm.setImportConfig(wImportConfig.getText());
         spm.setNewDatasetName(wNewDatasetName.getText());
-        spm.setUseSocrataGeocoding(wUseSocrataGeocoding.getSelection());
+        //spm.setUseSocrataGeocoding(wUseSocrataGeocoding.getSelection());
         spm.setDeleteTempFile(wDeleteTempFile.getSelection());
+        spm.setSetAsideErrors(wSetAsideErrors.getSelection());
         spm.setProxyHost(wProxyHost.getText());
         spm.setProxyPort(wProxyPort.getText());
         spm.setProxyUsername(wProxyUsername.getText());
@@ -985,32 +956,5 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
 
         Const.sortStrings(fieldNames);
         columnInfos[0].setComboValues(fieldNames);
-    }
-
-    private String[] getImportConfigs() throws KettleStepException {
-        List<String> importConfigs = new ArrayList<>();
-        String domain = wDomain.getText();
-        String host;
-        if (domain.startsWith("https://")) {
-            host = domain.replace("https://", "");
-        } else if (domain.startsWith("http://")) {
-            host = domain.replace("http://", "");
-        } else {
-            host = domain;
-            domain = "https://" + domain;
-        }
-
-        String url = domain + "/api/publishing/v1/config";
-        String credentials = wUserName.getText() + ":" + wPassword.getText();
-        String authorize = Base64.getEncoder().encodeToString(credentials.getBytes());
-
-        JsonNode result = SocrataPublishUtil.execute(SocrataPublishUtil.get(url, host, authorize, "application/json"), log, input);
-
-        for (JsonNode node : result) {
-            JsonNode name = node.path("resource").path("name");
-            importConfigs.add(name.asText());
-        }
-
-        return importConfigs.toArray(new String[importConfigs.size()]);
     }
 }
