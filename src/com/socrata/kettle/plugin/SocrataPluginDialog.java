@@ -83,6 +83,9 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
     private FormData fdDeleteTempFile;
     private FormData fdlSetAsideErrors;
     private FormData fdSetAsideErrors;
+    private FormData fdlErrorFileLocation;
+    private FormData fdbErrorFileLocation;
+    private FormData fdErrorFileLocation;
     private Label wlDatasetName;
     private TextVar wDatasetName;
     private Label wlPublishDataset;
@@ -99,6 +102,9 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
     private Button wDeleteTempFile;
     private Label wlSetAsideErrors;
     private Button wSetAsideErrors;
+    private Label wlErrorFileLocation;
+    private Button wbErrorFileLocation;
+    private TextVar wErrorFileLocation;
 
     private Group wProxyGroup;
     private FormData fdProxyGroup;
@@ -337,7 +343,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wNewDatasetName.setLayoutData(fdNewDatasetName);
 
         // Publish Dataset
-        wlPublishDataset = new Label(wParametersGroup, SWT.RIGHT);
+        /*wlPublishDataset = new Label(wParametersGroup, SWT.RIGHT);
         wlPublishDataset.setText(Messages.getString("SocrataPluginDialog.PublishDataset.Label"));
         props.setLook(wlPublishDataset);
         fdlPublishDataset = new FormData();
@@ -353,7 +359,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         fdPublishDataset.left = new FormAttachment(middle, 0);
         fdPublishDataset.top = new FormAttachment(wNewDatasetName, margin);
         fdPublishDataset.right = new FormAttachment(100, 0);
-        wPublishDataset.setLayoutData(fdPublishDataset);
+        wPublishDataset.setLayoutData(fdPublishDataset);*/
 
         // Public Dataset
         wlPublicDataset = new Label(wParametersGroup, SWT.RIGHT);
@@ -361,7 +367,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         props.setLook(wlPublicDataset);
         fdlPublicDataset = new FormData();
         fdlPublicDataset.left = new FormAttachment(0, 0);
-        fdlPublicDataset.top = new FormAttachment(wPublishDataset, margin);
+        fdlPublicDataset.top = new FormAttachment(wNewDatasetName, margin);
         fdlPublicDataset.right = new FormAttachment(middle, -margin);
         wlPublicDataset.setLayoutData(fdlPublicDataset);
 
@@ -370,7 +376,7 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         props.setLook(wPublicDataset);
         fdPublicDataset = new FormData();
         fdPublicDataset.left = new FormAttachment(middle, 0);
-        fdPublicDataset.top = new FormAttachment(wPublishDataset, margin);
+        fdPublicDataset.top = new FormAttachment(wNewDatasetName, margin);
         fdPublicDataset.right = new FormAttachment(100, 0);
         wPublicDataset.setLayoutData(fdPublicDataset);
 
@@ -430,6 +436,34 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         fdSetAsideErrors.top = new FormAttachment(wDeleteTempFile, margin);
         fdSetAsideErrors.right = new FormAttachment(100, 0);
         wSetAsideErrors.setLayoutData(fdSetAsideErrors);
+
+        // Location to Save Error File
+        wlErrorFileLocation = new Label(wParametersGroup, SWT.RIGHT);
+        wlErrorFileLocation.setText(Messages.getString("SocrataPluginDialog.ErrorFileLocation.Label"));
+        props.setLook(wlErrorFileLocation);
+        fdlErrorFileLocation = new FormData();
+        fdlErrorFileLocation.left = new FormAttachment(0, 0);
+        fdlErrorFileLocation.top = new FormAttachment(wSetAsideErrors, margin);
+        fdlErrorFileLocation.right = new FormAttachment(middle, -margin);
+        wlErrorFileLocation.setLayoutData(fdlErrorFileLocation);
+
+        wbErrorFileLocation = new Button(wParametersGroup, SWT.PUSH | SWT.CENTER);
+        props.setLook(wbErrorFileLocation);
+        wbErrorFileLocation.setText(Messages.getString("SocrataPluginDialog.Button.Browse"));
+        fdbErrorFileLocation = new FormData();
+        fdbErrorFileLocation.right = new FormAttachment(100, 0);
+        fdbErrorFileLocation.top = new FormAttachment(wSetAsideErrors, 0);
+        wbErrorFileLocation.setLayoutData(fdbErrorFileLocation);
+
+        wErrorFileLocation = new TextVar(transMeta, wParametersGroup, SWT.SINGLE | SWT.LEFT | SWT.BORDER);
+        wErrorFileLocation.setToolTipText(Messages.getString("SocrataPluginDialog.ErrorFileLocation.Tooltip"));
+        props.setLook(wErrorFileLocation);
+        wErrorFileLocation.addModifyListener(lsMod);
+        fdErrorFileLocation = new FormData();
+        fdErrorFileLocation.left = new FormAttachment(middle, 0);
+        fdErrorFileLocation.top = new FormAttachment(wSetAsideErrors, margin);
+        fdErrorFileLocation.right = new FormAttachment(wbErrorFileLocation, -margin);
+        wErrorFileLocation.setLayoutData(fdErrorFileLocation);
 
         fdParametersGroup = new FormData();
         fdParametersGroup.left = new FormAttachment(0, margin);
@@ -641,6 +675,28 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         fdTabFolder.bottom = new FormAttachment(wOK, -margin);
         wTabFolder.setLayoutData(fdTabFolder);
 
+        wbErrorFileLocation.addSelectionListener(new SelectionAdapter() {
+            @Override
+            public void widgetSelected(SelectionEvent selectionEvent) {
+                super.widgetSelected(selectionEvent);
+                FileDialog dialog = new FileDialog(shell, SWT.SAVE);
+                dialog.setFilterExtensions(new String[] {"*.csv"});
+                if (wErrorFileLocation.getText() != null) {
+                    dialog.setFileName(transMeta.environmentSubstitute(wErrorFileLocation.getText()));
+                }
+                dialog.setFilterNames(new String[] {
+                        Messages.getString("SocrataPluginDialog.ErrorFileLocation.FileType")
+                });
+                if (dialog.open() != null) {
+                    wErrorFileLocation.setText(dialog.getFilterPath() + System.getProperty("file.separator")
+                            + dialog.getFileName());
+                } else {
+                    wErrorFileLocation.setText(dialog.getFilterPath() + System.getProperty("file.separator")
+                            + dialog.getFileName());
+                }
+            }
+        });
+
         lsGet = new Listener() {
             @Override
             public void handleEvent(Event event) {
@@ -705,8 +761,8 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         //wlPublicDataset.setEnabled(enable);
         //wPublicDataset.setEnabled(enable);
 
-        wlPublishDataset.setEnabled(enable);
-        wPublishDataset.setEnabled(enable);
+        //wlPublishDataset.setEnabled(enable);
+        //wPublishDataset.setEnabled(enable);
     }
 
     private void cancel() {
@@ -759,13 +815,14 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wUserName.setText(input.getUser());
         wPassword.setText(input.getPassword());
         wDatasetName.setText(input.getDatasetName());
-        wPublishDataset.setSelection(input.isPublishDataset());
+        //wPublishDataset.setSelection(input.isPublishDataset());
         wPublicDataset.setSelection(input.isPublicDataset());
         wWriterMode.setText(input.getWriterMode());
         wNewDatasetName.setText(input.getNewDatasetName());
         //wUseSocrataGeocoding.setSelection(input.isUseSocrataGeocoding());
         wDeleteTempFile.setSelection(input.isDeleteTempFile());
         wSetAsideErrors.setSelection(input.isSetAsideErrors());
+        wErrorFileLocation.setText(input.getErrorFileLocation());
         wProxyHost.setText(input.getProxyHost());
         wProxyPort.setText(input.getProxyPort());
         wProxyUsername.setText(input.getProxyUsername());
@@ -817,13 +874,14 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         spm.setUser(wUserName.getText());
         spm.setPassword(wPassword.getText());
         spm.setDatasetName(wDatasetName.getText());
-        spm.setPublishDataset(wPublishDataset.getSelection());
+        //spm.setPublishDataset(wPublishDataset.getSelection());
         spm.setPublicDataset(wPublicDataset.getSelection());
         spm.setWriterMode(wWriterMode.getText());
         spm.setNewDatasetName(wNewDatasetName.getText());
         //spm.setUseSocrataGeocoding(wUseSocrataGeocoding.getSelection());
         spm.setDeleteTempFile(wDeleteTempFile.getSelection());
         spm.setSetAsideErrors(wSetAsideErrors.getSelection());
+        spm.setErrorFileLocation(wErrorFileLocation.getText());
         spm.setProxyHost(wProxyHost.getText());
         spm.setProxyPort(wProxyPort.getText());
         spm.setProxyUsername(wProxyUsername.getText());

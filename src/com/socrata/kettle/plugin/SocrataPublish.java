@@ -1,6 +1,7 @@
 package com.socrata.kettle.plugin;
 
 import org.apache.commons.httpclient.methods.*;
+import org.apache.commons.io.FileUtils;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ArrayNode;
@@ -10,6 +11,8 @@ import org.pentaho.di.core.logging.LogChannelInterface;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
@@ -26,6 +29,7 @@ public class SocrataPublish {
     private String authorize;
     private String datasetId;
     private String writerMode;
+    private String errorFileLocation;
     private File file;
     private SocrataTextFileField[] outputFields;
     private SocrataPluginMeta meta;
@@ -47,6 +51,7 @@ public class SocrataPublish {
         authorize = Base64.getEncoder().encodeToString(credentials.getBytes());
         datasetId = meta.getDatasetName();
         writerMode = meta.getWriterMode();
+        errorFileLocation = meta.getErrorFileLocation();
         outputFields = meta.getOutputFields();
         this.file = file;
         this.meta = meta;
@@ -142,8 +147,6 @@ public class SocrataPublish {
                 inputSchemaId = inputSchema.asText();
             }
 
-
-
             JsonNode latestOutput = results.findValue("latest_output");
             latestOutputPath = latestOutput.asText().replace("{input_schema_id}", inputSchemaId);
             log.logDebug(latestOutputPath);
@@ -186,12 +189,27 @@ public class SocrataPublish {
                 createOutputSchema(results);
             }
 
-            if (errorCount > 0 && !meta.isSetAsideErrors()) {
-                throw new KettleStepException("Errors transforming data during publish. Error rows can be viewed here: " +
-                domain + schemaErrorPath);
-            } else if (errorCount > 0 && meta.isSetAsideErrors()) {
-                log.logBasic("Errors transforming data during publish. Error rows can be viewed here: " + domain +
-                schemaErrorPath);
+            if (errorCount > 0) {
+                if (errorFileLocation != null && !errorFileLocation.isEmpty()) {
+                    GetMethod getCsv = SocrataPublishUtil.get(domain + schemaErrorPath, host, authorize, "text/csv");
+
+                    SocrataPublishUtil.executeCsv(getCsv, log, meta);
+
+                    if (meta.isSetAsideErrors()) {
+                        log.logBasic("Errors transforming data during publish. Error rows can be viewed here: "
+                                + errorFileLocation);
+                    } else {
+                        throw new KettleStepException("Errors transforming data during publish. Error rows can be viewed here: "
+                                + errorFileLocation);
+                    }
+                } else {
+                    if (meta.isSetAsideErrors()) {
+                        log.logBasic("Errors transforming data during publish. Error rows have not been saved.");
+                    } else {
+                        throw new KettleStepException("Errors transforming data during publish. Error rows can be viewed here: "
+                                + domain + schemaErrorPath);
+                    }
+                }
             }
         }
     }

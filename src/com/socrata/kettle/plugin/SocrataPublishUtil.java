@@ -6,11 +6,13 @@ import org.apache.commons.httpclient.methods.GetMethod;
 import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.httpclient.methods.PutMethod;
 import org.apache.commons.httpclient.params.HttpMethodParams;
+import org.apache.commons.io.FileUtils;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.logging.LogChannelInterface;
 
+import java.io.File;
 import java.io.InputStream;
 
 /**
@@ -72,6 +74,37 @@ public class SocrataPublishUtil {
             log.logDebug("HttpClient connection released");
         }
         return response;
+    }
+
+    public static void executeCsv(HttpMethod method, LogChannelInterface log, SocrataPluginMeta meta) throws KettleStepException {
+        HttpClient client = getClient(meta);
+        InputStream responseStream = null;
+        String errorFileLocation = meta.getErrorFileLocation();
+        try {
+            log.logDebug("Executing: " + method.getURI());
+            int statusCode = client.executeMethod(method);
+            log.logBasic("Request status code: " + statusCode);
+
+            if (statusCode != HttpStatus.SC_OK && statusCode != HttpStatus.SC_CREATED) {
+                throw new KettleStepException("Request failed: " + method.getStatusLine());
+            }
+
+            try {
+                responseStream = method.getResponseBodyAsStream();
+                File errorFile = new File(errorFileLocation);
+                if (responseStream != null) {
+                    FileUtils.copyInputStreamToFile(responseStream, errorFile);
+                }
+            } catch (Exception e) {
+                log.logDebug(e.getMessage());
+            }
+        } catch (Exception ex) {
+            log.logError(ex.getMessage());
+            throw new KettleStepException("Failure executing request: " + ex.getMessage());
+        } finally {
+            method.releaseConnection();
+            log.logDebug("HttpClient connection released");
+        }
     }
 
     public static GetMethod get(String url, String host, String auth, String contentType) {
