@@ -74,6 +74,9 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
 
         if (r == null) {
             logDebug("Last row of the file has processed");
+            if (meta.getOutputFields().length == 0) {
+                throw new KettleStepException("No output fields selected. Please complete the Fields tab.");
+            }
             // Publish temp file
             if (writerMode.equalsIgnoreCase("create")) {
                 createDataset();
