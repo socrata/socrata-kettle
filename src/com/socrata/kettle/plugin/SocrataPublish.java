@@ -168,47 +168,69 @@ public class SocrataPublish {
         JsonNode completedAt = results.path("resource").path("completed_at");
         log.logDebug("Latest completedAt value: " + completedAt.asText());
         // Wait until processing is complete
-        if (completedAt.asText() == null || completedAt.asText().equalsIgnoreCase("null") || completedAt.asText().isEmpty()) {
+        while (completedAt.asText() == null || completedAt.asText().equalsIgnoreCase("null") || completedAt.asText().isEmpty()) {
             log.logBasic("Transformation processing ...");
             try {
                 Thread.sleep(2000);
             } catch (Exception ex) {
                 // do nothing
             }
-            getLatestOutput();
-        } else {
+            results = SocrataPublishUtil.execute(
+                    SocrataPublishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
+            completedAt = results.path("resource").path("completed_at");
+        }
+
             JsonNode schemaErrors = results.findValue("schema_errors");
             schemaErrorPath = schemaErrors.asText();
             log.logDebug(schemaErrorPath);
 
-            JsonNode errors = results.path("resource").path("error_count");
-            int errorCount = errors.asInt();
-            log.logBasic("Error count: " + errorCount);
+        if (isCreate) {
+            createOutputSchema(results);
+            isCreate = false;
+            results = SocrataPublishUtil.execute(
+                    SocrataPublishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
+            completedAt = results.path("resource").path("completed_at");
 
-            if (isCreate) {
-                createOutputSchema(results);
+            JsonNode outputId = results.path("resource").path("id");
+            outputSchemaId = outputId.asInt();
+            log.logDebug("Latest output schema id: " + outputSchemaId);
+
+            while (completedAt.asText() == null || completedAt.asText().equalsIgnoreCase("null") || completedAt.asText().isEmpty()) {
+                log.logBasic("Transformation processing ...");
+                try {
+                    Thread.sleep(2000);
+                } catch (Exception ex) {
+                    // do nothing
+                }
+                results = SocrataPublishUtil.execute(
+                        SocrataPublishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
+                completedAt = results.path("resource").path("completed_at");
             }
+        }
 
-            if (errorCount > 0) {
-                if (errorFileLocation != null && !errorFileLocation.isEmpty()) {
-                    GetMethod getCsv = SocrataPublishUtil.get(domain + schemaErrorPath, host, authorize, "text/csv");
+        JsonNode errors = results.path("resource").path("error_count");
+        int errorCount = errors.asInt();
+        log.logBasic("Error count: " + errorCount);
 
-                    SocrataPublishUtil.executeCsv(getCsv, log, meta);
+        if (errorCount > 0) {
+            if (errorFileLocation != null && !errorFileLocation.isEmpty()) {
+                GetMethod getCsv = SocrataPublishUtil.get(domain + schemaErrorPath, host, authorize, "text/csv");
 
-                    if (meta.isSetAsideErrors()) {
-                        log.logBasic("Errors transforming data during publish. Error rows can be viewed here: "
-                                + errorFileLocation);
-                    } else {
-                        throw new KettleStepException("Errors transforming data during publish. Error rows can be viewed here: "
-                                + errorFileLocation);
-                    }
+                SocrataPublishUtil.executeCsv(getCsv, log, meta);
+
+                if (meta.isSetAsideErrors()) {
+                    log.logBasic("Errors transforming data during publish. Error rows can be viewed here: "
+                            + errorFileLocation);
                 } else {
-                    if (meta.isSetAsideErrors()) {
-                        log.logBasic("Errors transforming data during publish. Error rows have not been saved.");
-                    } else {
-                        throw new KettleStepException("Errors transforming data during publish. Error rows can be viewed here: "
-                                + domain + schemaErrorPath);
-                    }
+                    throw new KettleStepException("Errors transforming data during publish. Error rows can be viewed here: "
+                            + errorFileLocation);
+                }
+            } else {
+                if (meta.isSetAsideErrors()) {
+                    log.logBasic("Errors transforming data during publish. Error rows have not been saved.");
+                } else {
+                    throw new KettleStepException("Errors transforming data during publish. Error rows can be viewed here: "
+                            + domain + schemaErrorPath);
                 }
             }
         }
@@ -245,7 +267,7 @@ public class SocrataPublish {
         }
     }
 
-    private void createOutputSchema(JsonNode node) {
+    private void createOutputSchema(JsonNode node) throws IOException, KettleStepException {
         //Create new output schema with Kettle data types
         ObjectMapper mapper = new ObjectMapper();
         ObjectNode root = mapper.createObjectNode();
@@ -269,31 +291,31 @@ public class SocrataPublish {
             String dataType = field.getTypeDesc();
             switch (dataType) {
                 case "Number":
-                    transformExpr = "to_number(`" + field.getFieldName() + "`)";
+                    transformExpr = "to_number(`" + fieldName + "`)";
                     break;
                 case "String":
-                    transformExpr = "to_text(`" + field.getFieldName() + "`)";
+                    transformExpr = "to_text(`" + fieldName + "`)";
                     break;
                 case "Location":
-                    transformExpr = "to_location(`" + field.getFieldName() + "`)";
+                    transformExpr = "to_location(`" + fieldName + "`)";
                     break;
                 case "Boolean":
-                    transformExpr = "to_boolean(`" + field.getFieldName() + "`)";
+                    transformExpr = "to_boolean(`" + fieldName + "`)";
                     break;
                 case "Date":
-                    transformExpr = "to_floating_timestamp(`" + field.getFieldName() + "`)";
+                    transformExpr = "to_floating_timestamp(`" + fieldName + "`)";
                     break;
                 case "Integer":
-                    transformExpr = "to_number(`" + field.getFieldName() + "`)";
+                    transformExpr = "to_number(`" + fieldName + "`)";
                     break;
                 case "Point":
-                    transformExpr = "to_point(`" + field.getFieldName() + "`)";
+                    transformExpr = "to_point(`" + fieldName + "`)";
                     break;
                 case "Timestamp":
-                    transformExpr = "to_fixed_timestamp(`" + field.getFieldName() + "`)";
+                    transformExpr = "to_fixed_timestamp(`" + fieldName + "`)";
                     break;
                 case "BigNumber":
-                    transformExpr = "to_number(`" + field.getFieldName() + "`)";
+                    transformExpr = "to_number(`" + fieldName + "`)";
                     break;
                 default:
                     log.logError("Unrecognized column type: " + field.getName());
@@ -308,5 +330,18 @@ public class SocrataPublish {
         }
 
         root.put("output_columns", columns);
+        String outputJson = mapper.writeValueAsString(root);
+        log.logDebug(outputJson);
+
+        String url = domain + latestOutputPath.replace("/output/latest", "");
+        PostMethod post = SocrataPublishUtil.getPost(url, host, authorize, "application/json");
+        StringRequestEntity requestEntity = new StringRequestEntity(outputJson, "application/json", "UTF-8");
+        post.setRequestEntity(requestEntity);
+
+        try {
+            SocrataPublishUtil.execute(post, log, meta);
+        } catch (KettleStepException ex) {
+            throw new KettleStepException("Unable to update initial output schema. The request made had invalid values.");
+        }
     }
 }
