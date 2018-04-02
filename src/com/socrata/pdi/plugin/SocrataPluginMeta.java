@@ -29,7 +29,7 @@ import org.w3c.dom.Node;
 @Step(
         id = "SocrataOutput",
         image = "com/socrata/pdi/plugin/resources/Blue_logo_PMS7689_glyph.svg",
-        i18nPackageName="com.socrata.kettle.plugin",
+        i18nPackageName="com.socrata.pdi.plugin",
         name="SocrataPluginDialog.Shell.Title",
         description = "SocrataPluginDialog.Shell.Tooltip",
         categoryDescription="i18n:org.pentaho.di.trans.step:BaseStep.Category.Output"
