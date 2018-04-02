@@ -1,4 +1,4 @@
-package com.socrata.kettle.plugin;
+package com.socrata.pdi.plugin;
 
 import org.pentaho.di.i18n.BaseMessages;
 

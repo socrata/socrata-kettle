@@ -1,4 +1,4 @@
-package com.socrata.kettle.plugin;
+package com.socrata.pdi.plugin;
 
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.codehaus.jackson.JsonNode;

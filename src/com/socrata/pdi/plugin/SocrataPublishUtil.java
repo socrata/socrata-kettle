@@ -1,4 +1,4 @@
-package com.socrata.kettle.plugin;
+package com.socrata.pdi.plugin;
 
 import org.apache.commons.httpclient.*;
 import org.apache.commons.httpclient.auth.AuthScope;

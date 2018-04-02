@@ -1,4 +1,4 @@
-package com.socrata.kettle.plugin;
+package com.socrata.pdi.plugin;
 
 import org.apache.commons.httpclient.methods.*;
 import org.apache.commons.io.FileUtils;
@@ -180,9 +180,9 @@ public class SocrataPublish {
             completedAt = results.path("resource").path("completed_at");
         }
 
-            JsonNode schemaErrors = results.findValue("schema_errors");
-            schemaErrorPath = schemaErrors.asText();
-            log.logDebug(schemaErrorPath);
+        JsonNode schemaErrors = results.findValue("schema_errors");
+        schemaErrorPath = schemaErrors.asText();
+        log.logDebug(schemaErrorPath);
 
         if (isCreate) {
             createOutputSchema(results);

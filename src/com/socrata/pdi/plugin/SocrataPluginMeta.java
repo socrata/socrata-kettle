@@ -1,4 +1,4 @@
-package com.socrata.kettle.plugin;
+package com.socrata.pdi.plugin;
 
 import java.util.List;
 
@@ -28,7 +28,7 @@ import org.w3c.dom.Node;
  */
 @Step(
         id = "SocrataOutput",
-        image = "com/socrata/kettle/plugin/resources/Blue_logo_PMS7689_glyph.svg",
+        image = "com/socrata/pdi/plugin/resources/Blue_logo_PMS7689_glyph.svg",
         i18nPackageName="com.socrata.kettle.plugin",
         name="SocrataPluginDialog.Shell.Title",
         description = "SocrataPluginDialog.Shell.Tooltip",
