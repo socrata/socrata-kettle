@@ -57,7 +57,7 @@ public class SocrataPublish {
         this.meta = meta;
 
         if (writerMode.equalsIgnoreCase("Create")) {
-            writerMode = "Upsert";
+            writerMode = "Update";
             isCreate = true;
         }
 
@@ -72,14 +72,7 @@ public class SocrataPublish {
         String url = domain + "/api/publishing/v1/revision/" + datasetId;
         PostMethod httpPost = SocrataPublishUtil.getPost(url, host, authorize, "application/json");
 
-        String dataAction;
-        if(writerMode.equalsIgnoreCase("upsert")) {
-            dataAction = "update";
-        } else if (writerMode.equalsIgnoreCase("replace")) {
-            dataAction = "replace";
-        } else {
-            throw new IOException("Invalid publishing data action");
-        }
+        String dataAction = writerMode.toLowerCase();
 
         String permission;
         if (meta.isPublicDataset()) {

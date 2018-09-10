@@ -594,7 +594,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             }
 
             SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();
-            updated.setWriterMode("Upsert");
+            updated.setWriterMode("Update");
             meta.replaceMeta(updated);
 
             if(repository != null) {

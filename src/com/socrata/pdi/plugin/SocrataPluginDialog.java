@@ -295,14 +295,14 @@ public class SocrataPluginDialog extends BaseStepDialog implements StepDialogInt
         wWriterMode = new ComboVar(transMeta, wParametersGroup, SWT.SINGLE | SWT.READ_ONLY | SWT.BORDER);
         wWriterMode.setEditable(true);
 
-        String upsert = Messages.getString("SocrataPluginDialog.WriterMode.Upsert");
+        String update = Messages.getString("SocrataPluginDialog.WriterMode.Update");
         String replace = Messages.getString("SocrataPluginDialog.WriterMode.Replace");
         String create = Messages.getString("SocrataPluginDialog.WriterMode.Create");
         //String delete = Messages.getString("SocrataPluginDialog.WriterMode.Delete");
-        //wWriterMode.setItems(new String[]{upsert, replace});
-        //wWriterMode.setItems(new String[]{upsert, replace, create, delete});
-        wWriterMode.setItems(new String[]{upsert, replace, create});
-        wWriterMode.setData(upsert, "upsert");
+        //wWriterMode.setItems(new String[]{update, replace});
+        //wWriterMode.setItems(new String[]{update, replace, create, delete});
+        wWriterMode.setItems(new String[]{update, replace, create});
+        wWriterMode.setData(update, "update");
         wWriterMode.setData(replace, "replace");
         wWriterMode.setData(create, "create");
         //wWriterMode.setData(delete, "delete");
