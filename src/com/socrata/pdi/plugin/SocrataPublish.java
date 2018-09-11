@@ -24,6 +24,7 @@ import java.util.Base64;
 public class SocrataPublish {
 
     private LogChannelInterface log;
+    private SocrataPublishUtil publishUtil;
     private String host;
     private String domain;
     private String authorize;
@@ -43,9 +44,11 @@ public class SocrataPublish {
     private String latestOutputPath;
     private int outputSchemaId;
 
-    public void publish(SocrataPluginMeta meta, File file, LogChannelInterface log) throws IOException, KettleStepException {
+    public void publish(SocrataPluginMeta meta, File file, LogChannelInterface log, SocrataPublishUtil socrataPublishUtil)
+            throws IOException, KettleStepException {
         this.log = log;
-        host = SocrataPublishUtil.setHost(meta);
+        this.publishUtil = socrataPublishUtil;
+        host = publishUtil.setHost(meta);
         domain = meta.getDomain();
         String credentials = meta.getUser() + ":" + meta.getPassword();
         authorize = Base64.getEncoder().encodeToString(credentials.getBytes());
@@ -70,7 +73,7 @@ public class SocrataPublish {
 
     private void createRevision() throws IOException, KettleStepException {
         String url = domain + "/api/publishing/v1/revision/" + datasetId;
-        PostMethod httpPost = SocrataPublishUtil.getPost(url, host, authorize, "application/json");
+        PostMethod httpPost = publishUtil.getPost(url, host, authorize, "application/json");
 
         String permission;
         if (meta.isPublicDataset()) {
@@ -84,7 +87,7 @@ public class SocrataPublish {
 
         httpPost.setRequestEntity(string);
 
-        JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
+        JsonNode results = publishUtil.execute(httpPost, log, meta);
         log.logBasic("Create revision status: " + httpPost.getStatusLine());
 
         //Get revision_seq value
@@ -106,14 +109,14 @@ public class SocrataPublish {
 
     private void createSource(String filename) throws IOException, KettleStepException {
 
-        PostMethod httpPost = SocrataPublishUtil.getPost(domain + createSourcePath, host, authorize, "application/json");
+        PostMethod httpPost = publishUtil.getPost(domain + createSourcePath, host, authorize, "application/json");
 
         String json = "{ \"source_type\": {\"type\": \"upload\", \"filename\": \"" + filename + "\" }}";
         StringRequestEntity string = new StringRequestEntity(json, "application/json", "UTF-8");
         log.logDebug(json);
 
         httpPost.setRequestEntity(string);
-        JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
+        JsonNode results = publishUtil.execute(httpPost, log, meta);
         log.logBasic("Create source status: " + httpPost.getStatusLine());
 
         if (results != null) {
@@ -125,10 +128,10 @@ public class SocrataPublish {
 
     private void uploadSourceData() throws IOException, KettleStepException {
 
-        PostMethod httpPost = SocrataPublishUtil.getPost(domain + uploadDataPath, host, authorize, "text/csv");
+        PostMethod httpPost = publishUtil.getPost(domain + uploadDataPath, host, authorize, "text/csv");
         FileRequestEntity fre = new FileRequestEntity(file, "text/csv");
         httpPost.setRequestEntity(fre);
-        JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
+        JsonNode results = publishUtil.execute(httpPost, log, meta);
         log.logBasic("Upload source status: " + httpPost.getStatusLine());
 
         if (results != null) {
@@ -149,8 +152,8 @@ public class SocrataPublish {
 
     private void getLatestOutput() throws IOException, KettleStepException {
 
-        JsonNode results = SocrataPublishUtil.execute(
-                SocrataPublishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
+        JsonNode results = publishUtil.execute(
+                publishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
         log.logDebug(results.toString());
 
         if (outputSchemaId == 0) {
@@ -169,8 +172,8 @@ public class SocrataPublish {
             } catch (Exception ex) {
                 // do nothing
             }
-            results = SocrataPublishUtil.execute(
-                    SocrataPublishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
+            results = publishUtil.execute(
+                    publishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
             completedAt = results.path("resource").path("completed_at");
         }
 
@@ -181,8 +184,8 @@ public class SocrataPublish {
         if (isCreate) {
             createOutputSchema(results);
             isCreate = false;
-            results = SocrataPublishUtil.execute(
-                    SocrataPublishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
+            results = publishUtil.execute(
+                    publishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
             completedAt = results.path("resource").path("completed_at");
 
             JsonNode outputId = results.path("resource").path("id");
@@ -196,8 +199,8 @@ public class SocrataPublish {
                 } catch (Exception ex) {
                     // do nothing
                 }
-                results = SocrataPublishUtil.execute(
-                        SocrataPublishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
+                results = publishUtil.execute(
+                        publishUtil.get(domain + latestOutputPath, host, authorize, "application/json"), log, meta);
                 completedAt = results.path("resource").path("completed_at");
             }
         }
@@ -208,9 +211,9 @@ public class SocrataPublish {
 
         if (errorCount > 0) {
             if (errorFileLocation != null && !errorFileLocation.isEmpty()) {
-                GetMethod getCsv = SocrataPublishUtil.get(domain + schemaErrorPath, host, authorize, "text/csv");
+                GetMethod getCsv = publishUtil.get(domain + schemaErrorPath, host, authorize, "text/csv");
 
-                SocrataPublishUtil.executeCsv(getCsv, log, meta);
+                publishUtil.executeCsv(getCsv, log, meta);
 
                 if (meta.isSetAsideErrors()) {
                     log.logBasic("Errors transforming data during publish. Error rows can be viewed here: "
@@ -231,7 +234,7 @@ public class SocrataPublish {
     }
 
     private void applyRevision() throws IOException, KettleStepException {
-        PutMethod httpPut = SocrataPublishUtil.getPut(domain + applyRevisionPath, host, authorize, "application/json");
+        PutMethod httpPut = publishUtil.getPut(domain + applyRevisionPath, host, authorize, "application/json");
 
         String json = "{ \"output_schema_id\": " + outputSchemaId + " }";
         StringRequestEntity string = new StringRequestEntity(json, "application/json", "UTF-8");
@@ -239,7 +242,7 @@ public class SocrataPublish {
 
         httpPut.setRequestEntity(string);
 
-        JsonNode results = SocrataPublishUtil.execute(httpPut, log, meta);
+        JsonNode results = publishUtil.execute(httpPut, log, meta);
         if(results != null) {
             JsonNode finishedAt = results.findValue("finished_at");
             String url = domain + "/api/publishing/v1/revision/" + datasetId + "/" + revisionSeq;
@@ -249,8 +252,8 @@ public class SocrataPublish {
                 String status = statusNode.asText();
                 log.logBasic("Current job status: " + status);
 
-                GetMethod getStatus = SocrataPublishUtil.get(url, host, authorize, "application/json");
-                results = SocrataPublishUtil.execute(getStatus, log, meta);
+                GetMethod getStatus = publishUtil.get(url, host, authorize, "application/json");
+                results = publishUtil.execute(getStatus, log, meta);
                 finishedAt = results.path("resource").path("task_sets").path(0).path("finished_at");
                 try {
                     Thread.sleep(3000);
@@ -328,12 +331,12 @@ public class SocrataPublish {
         log.logDebug(outputJson);
 
         String url = domain + latestOutputPath.replace("/output/latest", "");
-        PostMethod post = SocrataPublishUtil.getPost(url, host, authorize, "application/json");
+        PostMethod post = publishUtil.getPost(url, host, authorize, "application/json");
         StringRequestEntity requestEntity = new StringRequestEntity(outputJson, "application/json", "UTF-8");
         post.setRequestEntity(requestEntity);
 
         try {
-            SocrataPublishUtil.execute(post, log, meta);
+            publishUtil.execute(post, log, meta);
             log.logBasic("Create output schema status: " + post.getStatusLine());
         } catch (KettleStepException ex) {
             throw new KettleStepException("Unable to update initial output schema. The request made had invalid values.");
