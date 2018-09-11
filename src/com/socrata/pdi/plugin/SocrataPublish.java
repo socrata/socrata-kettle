@@ -72,8 +72,6 @@ public class SocrataPublish {
         String url = domain + "/api/publishing/v1/revision/" + datasetId;
         PostMethod httpPost = SocrataPublishUtil.getPost(url, host, authorize, "application/json");
 
-        String dataAction = writerMode.toLowerCase();
-
         String permission;
         if (meta.isPublicDataset()) {
             permission = "public";
@@ -81,12 +79,13 @@ public class SocrataPublish {
             permission = "private";
         }
 
-        String json = "{ \"action\": {\"type\": \"" + dataAction + "\", \"permission\": \"" + permission + "\" }}";
+        String json = "{ \"action\": {\"type\": \"" + writerMode.toLowerCase() + "\", \"permission\": \"" + permission + "\" }}";
         StringRequestEntity string = new StringRequestEntity(json, "application/json", "UTF-8");
 
         httpPost.setRequestEntity(string);
 
         JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
+        log.logBasic("Create revision status: " + httpPost.getStatusLine());
 
         //Get revision_seq value
         if (results != null) {
@@ -115,6 +114,7 @@ public class SocrataPublish {
 
         httpPost.setRequestEntity(string);
         JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
+        log.logBasic("Create source status: " + httpPost.getStatusLine());
 
         if (results != null) {
             JsonNode bytes = results.findValue("bytes");
@@ -129,6 +129,7 @@ public class SocrataPublish {
         FileRequestEntity fre = new FileRequestEntity(file, "text/csv");
         httpPost.setRequestEntity(fre);
         JsonNode results = SocrataPublishUtil.execute(httpPost, log, meta);
+        log.logBasic("Upload source status: " + httpPost.getStatusLine());
 
         if (results != null) {
 
@@ -164,7 +165,7 @@ public class SocrataPublish {
         while (completedAt.asText() == null || completedAt.asText().equalsIgnoreCase("null") || completedAt.asText().isEmpty()) {
             log.logBasic("Transformation processing ...");
             try {
-                Thread.sleep(2000);
+                Thread.sleep(3000);
             } catch (Exception ex) {
                 // do nothing
             }
@@ -191,7 +192,7 @@ public class SocrataPublish {
             while (completedAt.asText() == null || completedAt.asText().equalsIgnoreCase("null") || completedAt.asText().isEmpty()) {
                 log.logBasic("Transformation processing ...");
                 try {
-                    Thread.sleep(2000);
+                    Thread.sleep(3000);
                 } catch (Exception ex) {
                     // do nothing
                 }
@@ -250,9 +251,9 @@ public class SocrataPublish {
 
                 GetMethod getStatus = SocrataPublishUtil.get(url, host, authorize, "application/json");
                 results = SocrataPublishUtil.execute(getStatus, log, meta);
-                finishedAt = results.findValue("finished_at");
+                finishedAt = results.path("resource").path("task_sets").path(0).path("finished_at");
                 try {
-                    Thread.sleep(2000);
+                    Thread.sleep(3000);
                 } catch (Exception ex) {
                     // do nothing
                 }
@@ -333,6 +334,7 @@ public class SocrataPublish {
 
         try {
             SocrataPublishUtil.execute(post, log, meta);
+            log.logBasic("Create output schema status: " + post.getStatusLine());
         } catch (KettleStepException ex) {
             throw new KettleStepException("Unable to update initial output schema. The request made had invalid values.");
         }

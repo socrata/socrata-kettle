@@ -549,21 +549,21 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         String host = SocrataPublishUtil.setHost(meta);
         String domain = meta.getDomain();
 
-        boolean isNbe = false;
+        /*boolean isNbe = false;
 
         for (SocrataTextFileField field : meta.getOutputFields()) {
             if (field.getTypeDesc().equalsIgnoreCase("point")) {
                 isNbe = true;
             }
-        }
+        }*/
 
         try {
-            String nbe = "";
+            /*String nbe = "";
             if (isNbe) {
                 nbe = "?nbe=true";
-            }
+            }*/
 
-            String url = domain + "/api/views" + nbe;
+            String url = domain + "/api/views?nbe=true";
             PostMethod httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
             StringRequestEntity data = new StringRequestEntity("{\"name\": \"" + meta.getNewDatasetName() + "\"}",
                     "application/json", "UTF-8");

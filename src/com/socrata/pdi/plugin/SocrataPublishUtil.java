@@ -54,7 +54,7 @@ public class SocrataPublishUtil {
         try {
             log.logDebug("Executing: " + method.getURI());
             int statusCode = client.executeMethod(method);
-            log.logBasic("Request status code: " + statusCode);
+            log.logDebug("Request status code: " + statusCode);
 
             if (statusCode != HttpStatus.SC_OK && statusCode != HttpStatus.SC_CREATED) {
                 throw new KettleStepException("Request failed: " + method.getStatusLine());
@@ -83,7 +83,7 @@ public class SocrataPublishUtil {
         try {
             log.logDebug("Executing: " + method.getURI());
             int statusCode = client.executeMethod(method);
-            log.logBasic("Request status code: " + statusCode);
+            log.logDebug("Request status code: " + statusCode);
 
             if (statusCode != HttpStatus.SC_OK && statusCode != HttpStatus.SC_CREATED) {
                 throw new KettleStepException("Request failed: " + method.getStatusLine());
