@@ -286,6 +286,7 @@ public class SocrataPublish {
             SocrataTextFileField field = outputFields[position - 1];
             String transformExpr = "";
             String dataType = field.getTypeDesc();
+            String dataFormat = field.getFormat();
             switch (dataType) {
                 case "Number":
                     transformExpr = "to_number(`" + fieldName + "`)";
@@ -300,7 +301,12 @@ public class SocrataPublish {
                     transformExpr = "to_boolean(`" + fieldName + "`)";
                     break;
                 case "Date":
-                    transformExpr = "to_floating_timestamp(`" + fieldName + "`)";
+                    if (dataFormat != null && !dataFormat.isEmpty()) {
+                        dataFormat = convertDateFormat(dataFormat);
+                        transformExpr = "to_floating_timestamp(`" + fieldName + "`, '" + dataFormat + "')";
+                    } else {
+                        transformExpr = "to_floating_timestamp(`" + fieldName + "`)";
+                    }
                     break;
                 case "Integer":
                     transformExpr = "to_number(`" + fieldName + "`)";
@@ -309,7 +315,12 @@ public class SocrataPublish {
                     transformExpr = "to_point(`" + fieldName + "`)";
                     break;
                 case "Timestamp":
-                    transformExpr = "to_fixed_timestamp(`" + fieldName + "`)";
+                    if (dataFormat != null && !dataFormat.isEmpty()) {
+                        dataFormat = convertDateFormat(dataFormat);
+                        transformExpr = "to_fixed_timestamp(`" + fieldName + "`, '" + dataFormat + "')";
+                    } else {
+                        transformExpr = "to_fixed_timestamp(`" + fieldName + "`)";
+                    }
                     break;
                 case "BigNumber":
                     transformExpr = "to_number(`" + fieldName + "`)";
@@ -341,5 +352,49 @@ public class SocrataPublish {
         } catch (KettleStepException ex) {
             throw new KettleStepException("Unable to update initial output schema. The request made had invalid values.");
         }
+    }
+
+    private String convertDateFormat(String dateFormat) {
+        // year
+        dateFormat = dateFormat.replace("yyyy", "%Y");
+        dateFormat = dateFormat.replace("yy", "%y");
+
+        // month
+        dateFormat = dateFormat.replaceAll("M{4,}", "%B");
+        dateFormat = dateFormat.replace("MMM", "%b");
+        dateFormat = dateFormat.replace("MM", "%m");
+
+        // day
+        dateFormat = dateFormat.replace("dd", "%d");
+        dateFormat = dateFormat.replace("d", "%e");
+
+        // day name in week
+        dateFormat = dateFormat.replaceAll("E{4,}", "%A");
+        dateFormat = dateFormat.replace("EEE", "%a");
+
+        // day number of week
+        dateFormat = dateFormat.replace("u", "%u");
+
+        // hour in day
+        dateFormat = dateFormat.replace("HH", "%H");
+        dateFormat = dateFormat.replace("hh", "%I");
+
+        // minutes
+        dateFormat = dateFormat.replace("mm", "%M");
+
+        // seconds
+        dateFormat = dateFormat.replace("ss", "%S");
+
+        // milliseconds
+        dateFormat = dateFormat.replace(".SSS", "%.3f");
+        dateFormat = dateFormat.replaceAll(".S{4,}", "%.f");
+        dateFormat = dateFormat.replace("SSS", "%f");
+
+        // time zone
+        dateFormat = dateFormat.replace("z", "%Z");
+        dateFormat = dateFormat.replaceAll("Z{1,}", "%z");
+        dateFormat = dateFormat.replaceAll("X{1,}", "%:z");
+
+        return dateFormat;
     }
 }
