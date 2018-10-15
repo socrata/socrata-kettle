@@ -513,29 +513,6 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                     }
                 }
             }
-
-            logDebug("Determining field name mapping and ignore columns");
-            // Start with assuming that flowNames contains human readable field names
-            ignoreColumns = new HashSet<>(flowNames);
-            ignoreColumns.removeAll(names);
-
-            if (ignoreColumns.size() == flowNames.size()) {
-                // Nothing was removed so flowNames must contain api field names
-                ignoreColumns.removeAll(fieldNames);
-                logDebug("Number of Columns to Ignore: " + ignoreColumns.size());
-                if (ignoreColumns.size() == flowNames.size()) {
-                    // ERROR
-                    logError("No matching field names present");
-                }
-            }
-
-            for (String s : ignoreColumns) {
-                ignoreColumns.remove(s);
-                logBasic("IGNORING COLUMN: " + s);
-
-                String updated = s.replace(" ", "_");
-                ignoreColumns.add(updated);
-            }
         } catch (Exception e) {
             throw new KettleException("Error getting dataset information", e);
             //logError(e.getMessage());
@@ -567,7 +544,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
 
             String url = domain + "/api/views?nbe=true";
             PostMethod httpPost = socrataPublishUtil.getPost(url, host, auth, "application/json");
-            StringRequestEntity data = new StringRequestEntity("{\"name\": \"" + meta.getNewDatasetName() + "\"}",
+            StringRequestEntity data = new StringRequestEntity("{\"name\": \"" + meta.getNewDatasetName() + "\", \"displayType\":\"draft\"}",
                     "application/json", "UTF-8");
             httpPost.setRequestEntity(data);
 
