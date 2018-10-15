@@ -22,21 +22,21 @@ import java.io.InputStream;
  */
 public class SocrataPublishUtil {
 
-    private static HttpClient httpClient;
-    private static String appToken = "Eu1EiCmxZN4DWT9UmiXCLQpl6";
-    private static ObjectMapper mapper = new ObjectMapper();
+    private HttpClient httpClient;
+    private String appToken = "Eu1EiCmxZN4DWT9UmiXCLQpl6";
+    private ObjectMapper mapper = new ObjectMapper();
 
-    private static HttpClient getClient(SocrataPluginMeta meta) {
+    private HttpClient getClient(SocrataPluginMeta meta) {
         if (httpClient == null) {
             httpClient = new HttpClient();
 
             // Add proxy details if applicable
-            if (SocrataPublishUtil.hasValue(meta.getProxyHost()) && SocrataPublishUtil.hasValue(meta.getProxyPort())) {
+            if (hasValue(meta.getProxyHost()) && hasValue(meta.getProxyPort())) {
                 HostConfiguration config = httpClient.getHostConfiguration();
                 config.setProxy(meta.getProxyHost(), Integer.parseInt(meta.getProxyPort()));
 
-                if (SocrataPublishUtil.hasValue(meta.getProxyUsername())
-                        && SocrataPublishUtil.hasValue(meta.getProxyPassword())) {
+                if (hasValue(meta.getProxyUsername())
+                        && hasValue(meta.getProxyPassword())) {
                     Credentials credentials = new UsernamePasswordCredentials(meta.getProxyUsername(), meta.getProxyPassword());
                     AuthScope authScope = new AuthScope(meta.getProxyHost(), Integer.parseInt(meta.getProxyPort()));
 
@@ -48,13 +48,13 @@ public class SocrataPublishUtil {
         return httpClient;
     }
 
-    public static JsonNode execute(HttpMethod method, LogChannelInterface log, SocrataPluginMeta meta) throws KettleStepException {
+    public JsonNode execute(HttpMethod method, LogChannelInterface log, SocrataPluginMeta meta) throws KettleStepException {
         HttpClient client = getClient(meta);
         JsonNode response = null;
         try {
             log.logDebug("Executing: " + method.getURI());
             int statusCode = client.executeMethod(method);
-            log.logBasic("Request status code: " + statusCode);
+            log.logDebug("Request status code: " + statusCode);
 
             if (statusCode != HttpStatus.SC_OK && statusCode != HttpStatus.SC_CREATED) {
                 throw new KettleStepException("Request failed: " + method.getStatusLine());
@@ -76,14 +76,14 @@ public class SocrataPublishUtil {
         return response;
     }
 
-    public static void executeCsv(HttpMethod method, LogChannelInterface log, SocrataPluginMeta meta) throws KettleStepException {
+    public void executeCsv(HttpMethod method, LogChannelInterface log, SocrataPluginMeta meta) throws KettleStepException {
         HttpClient client = getClient(meta);
         InputStream responseStream = null;
         String errorFileLocation = meta.getErrorFileLocation();
         try {
             log.logDebug("Executing: " + method.getURI());
             int statusCode = client.executeMethod(method);
-            log.logBasic("Request status code: " + statusCode);
+            log.logDebug("Request status code: " + statusCode);
 
             if (statusCode != HttpStatus.SC_OK && statusCode != HttpStatus.SC_CREATED) {
                 throw new KettleStepException("Request failed: " + method.getStatusLine());
@@ -107,7 +107,7 @@ public class SocrataPublishUtil {
         }
     }
 
-    public static GetMethod get(String url, String host, String auth, String contentType) {
+    public GetMethod get(String url, String host, String auth, String contentType) {
         GetMethod get = new GetMethod(url);
         get.setRequestHeader("Authorization", "Basic " + auth);
         get.setRequestHeader("Content-Type", contentType);
@@ -119,7 +119,7 @@ public class SocrataPublishUtil {
         return get;
     }
 
-    public static PostMethod getPost(String url, String host, String auth, String contentType) {
+    public PostMethod getPost(String url, String host, String auth, String contentType) {
         PostMethod post = new PostMethod(url);
         post.setRequestHeader("Authorization", "Basic " + auth);
         post.setRequestHeader("Content-Type", contentType);
@@ -131,7 +131,7 @@ public class SocrataPublishUtil {
         return post;
     }
 
-    public static PutMethod getPut(String url, String host, String auth, String contentType) {
+    public PutMethod getPut(String url, String host, String auth, String contentType) {
         PutMethod put = new PutMethod(url);
 
         put.setRequestHeader("Authorization", "Basic " + auth);
@@ -144,7 +144,7 @@ public class SocrataPublishUtil {
         return put;
     }
 
-    public static String setHost(SocrataPluginMeta meta) {
+    public String setHost(SocrataPluginMeta meta) {
         String host = "";
         String domain = meta.getDomain();
 
@@ -160,7 +160,7 @@ public class SocrataPublishUtil {
         return host;
     }
 
-    public static boolean hasValue(String option) {
+    public boolean hasValue(String option) {
         return option != null && !option.isEmpty();
     }
 }

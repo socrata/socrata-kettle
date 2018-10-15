@@ -37,9 +37,11 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
     private List<String> fieldNames;
     private List<String> names;
     private Set<String> ignoreColumns;
+    private SocrataPublishUtil socrataPublishUtil;
 
     public SocrataPlugin(StepMeta s, StepDataInterface stepDataInterface, int c, TransMeta t, Trans dis) {
         super(s, stepDataInterface, c, t, dis);
+        socrataPublishUtil = new SocrataPublishUtil();
     }
 
     public boolean processRow(StepMetaInterface smi, StepDataInterface sdi) throws KettleException {
@@ -454,15 +456,15 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             String auth = Base64.getEncoder().encodeToString(user.getBytes());
             logDebug("User auth: " + auth);
 
-            String host = SocrataPublishUtil.setHost(meta);
+            String host = socrataPublishUtil.setHost(meta);
             String domain = meta.getDomain();
             logDebug("Host:" + host);
             logDebug("Domain: " + domain);
 
             String url = domain + "/api/views/" + meta.getDatasetName() + ".json";
             logDebug("Request URL: " + url);
-            GetMethod get = SocrataPublishUtil.get(url, host, auth, "application/json");
-            JsonNode response = SocrataPublishUtil.execute(get, log, meta);
+            GetMethod get = socrataPublishUtil.get(url, host, auth, "application/json");
+            JsonNode response = socrataPublishUtil.execute(get, log, meta);
 
             if (response != null) {
                 JsonNode columns = response.path("columns");
@@ -511,29 +513,6 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
                     }
                 }
             }
-
-            logDebug("Determining field name mapping and ignore columns");
-            // Start with assuming that flowNames contains human readable field names
-            ignoreColumns = new HashSet<>(flowNames);
-            ignoreColumns.removeAll(names);
-
-            if (ignoreColumns.size() == flowNames.size()) {
-                // Nothing was removed so flowNames must contain api field names
-                ignoreColumns.removeAll(fieldNames);
-                logDebug("Number of Columns to Ignore: " + ignoreColumns.size());
-                if (ignoreColumns.size() == flowNames.size()) {
-                    // ERROR
-                    logError("No matching field names present");
-                }
-            }
-
-            for (String s : ignoreColumns) {
-                ignoreColumns.remove(s);
-                logBasic("IGNORING COLUMN: " + s);
-
-                String updated = s.replace(" ", "_");
-                ignoreColumns.add(updated);
-            }
         } catch (Exception e) {
             throw new KettleException("Error getting dataset information", e);
             //logError(e.getMessage());
@@ -546,32 +525,32 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
         String user = meta.getUser() + ":" + meta.getPassword();
         String auth = Base64.getEncoder().encodeToString(user.getBytes());
 
-        String host = SocrataPublishUtil.setHost(meta);
+        String host = socrataPublishUtil.setHost(meta);
         String domain = meta.getDomain();
 
-        boolean isNbe = false;
+        /*boolean isNbe = false;
 
         for (SocrataTextFileField field : meta.getOutputFields()) {
             if (field.getTypeDesc().equalsIgnoreCase("point")) {
                 isNbe = true;
             }
-        }
+        }*/
 
         try {
-            String nbe = "";
+            /*String nbe = "";
             if (isNbe) {
                 nbe = "?nbe=true";
-            }
+            }*/
 
-            String url = domain + "/api/views" + nbe;
-            PostMethod httpPost = SocrataPublishUtil.getPost(url, host, auth, "application/json");
-            StringRequestEntity data = new StringRequestEntity("{\"name\": \"" + meta.getNewDatasetName() + "\"}",
+            String url = domain + "/api/views?nbe=true";
+            PostMethod httpPost = socrataPublishUtil.getPost(url, host, auth, "application/json");
+            StringRequestEntity data = new StringRequestEntity("{\"name\": \"" + meta.getNewDatasetName() + "\", \"displayType\":\"draft\"}",
                     "application/json", "UTF-8");
             httpPost.setRequestEntity(data);
 
             logDebug("Creating new dataset");
 
-            JsonNode response = SocrataPublishUtil.execute(httpPost, log, meta);
+            JsonNode response = socrataPublishUtil.execute(httpPost, log, meta);
             logBasic("Create datatset status: " + httpPost.getStatusLine());
             httpPost.releaseConnection();
 
@@ -594,7 +573,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
             }
 
             SocrataPluginMeta updated = (SocrataPluginMeta) meta.clone();
-            updated.setWriterMode("Upsert");
+            updated.setWriterMode("Update");
             meta.replaceMeta(updated);
 
             if(repository != null) {
@@ -621,7 +600,7 @@ public class SocrataPlugin extends BaseStep implements StepInterface {
 
         SocrataPublish publish = new SocrataPublish();
         try {
-            publish.publish(meta, filename, log);
+            publish.publish(meta, filename, log, socrataPublishUtil);
         } catch (IOException e) {
             throw new KettleStepException("Error publishing data: " + e.getMessage());
         }
