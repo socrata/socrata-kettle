@@ -1,7 +1,7 @@
 Socrata Plugin for Pentaho Data Integration
 ================
 
-Last updated: October 26, 2017
+Last updated: October 15, 2018
 
 Authors: [Malinda Curtis](http://www.github.com/malindac)
 
